@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang=zh-CN>
+
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width,initial-scale=1">
+  <title>Swift 项目底层框架（万能）</title>
+  <script src=https://cdn.jsdelivr.net/npm/marked/marked.min.js></script>
+  <script src=https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js></script>
+  <style>
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      color: #292b26;
+      background: radial-gradient(115% 120% at 0% 0%, #e0d1ff 0%, rgba(224, 209, 255, 0) 68%), radial-gradient(115% 120% at 100% 0%, #d5e5ff 0%, rgba(213, 229, 255, 0) 68%), linear-gradient(105deg, #f1e9ff 0%, #fbf7fe 48%, #eef4ff 100%);
+      background-attachment: fixed;
+      font: 14px Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif
+    }
+
+    .brand {
+      font-weight: bold;
+      font-size: 17px
+    }
+
+    .mark {
+      display: inline-grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      margin-right: 8px;
+      border-radius: 50%;
+      background: #748664;
+      color: white;
+      font-family: serif
+    }
+
+    .nav {
+      display: flex;
+      gap: 26px;
+      color: #85877f;
+      font-size: 13px
+    }
+
+    .nav b {
+      color: #292b26
+    }
+
+    .user {
+      margin-left: auto;
+      color: #77806e
+    }
+
+    .shell {
+      max-width: 900px;
+      margin: 38px auto 30px
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 22px;
+      align-items: start
+    }
+
+    .article,
+    .side {
+      background: transparent
+    }
+
+    .article {
+      padding: 32px 40px
+    }
+
+    .title {
+      font-size: 27px;
+      line-height: 1.45;
+      margin: 0 0 15px;
+      font-weight: 600
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #e8e9e4;
+      padding-bottom: 19px;
+      color: #999b94;
+      font-size: 13px
+    }
+
+    .meta strong {
+      font-weight: 500;
+      color: #5a5d54
+    }
+
+    .tag {
+      margin-left: auto;
+      background: rgba(255, 255, 255, .65);
+      color: #718064;
+      padding: 4px 8px
+    }
+
+    .lead {
+      background: rgba(255, 255, 255, .55);
+      border-left: 2px solid #879876;
+      margin: 20px 0;
+      padding: 11px 14px;
+      color: #666960;
+      line-height: 1.9;
+      font-size: 13px
+    }
+
+    .content {
+      font-size: 16px;
+      line-height: 1.95;
+      color: #565950
+    }
+
+    .content h1,
+    .content h2,
+    .content h3 {
+      color: #292b26;
+      line-height: 1.5
+    }
+
+    .content h1 {
+      font-size: 21px;
+      margin: 26px 0 10px
+    }
+
+    .content h2 {
+      font-size: 17px;
+      margin: 25px 0 10px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid #e8e9e4
+    }
+
+    .content h3 {
+      font-size: 14px;
+      margin: 19px 0 8px
+    }
+
+    .content p {
+      margin: 9px 0
+    }
+
+    .content a {
+      color: #71835f
+    }
+
+    .content blockquote {
+      margin: 14px 0;
+      padding: 9px 13px;
+      border-left: 2px solid #93a186;
+      background: rgba(255, 255, 255, .55);
+      color: #77796f
+    }
+
+    .content code {
+      font: 11px Menlo, monospace;
+      background: rgba(255, 255, 255, .7);
+      color: #687158;
+      padding: 2px 5px;
+      border-radius: 2px
+    }
+
+    .content pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      font: inherit;
+      color: inherit
+    }
+
+    .code {
+      margin: 14px 0;
+      border: 1px solid rgba(255, 255, 255, .8);
+      background: rgba(255, 255, 255, .55)
+    }
+
+    .codehead {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid #e8e9e4;
+      color: #96988f;
+      font: 10px Menlo, monospace
+    }
+
+    .codehead button {
+      border: 0;
+      background: transparent;
+      color: #808278;
+      cursor: pointer
+    }
+
+    .code pre {
+      margin: 0;
+      padding: 13px 15px;
+      overflow: auto;
+      font: 11px/1.8 Menlo, monospace;
+      color: #50554b
+    }
+
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 12px
+    }
+
+    .content th,
+    .content td {
+      border: 1px solid #e8e9e4;
+      padding: 8px;
+      text-align: left
+    }
+
+    .content th {
+      background: rgba(255, 255, 255, .6)
+    }
+
+    .content img {
+      max-width: 100%;
+      display: block;
+      margin: 15px auto;
+      border-radius: 2px
+    }
+
+    .content ul,
+    .content ol {
+      padding-left: 22px
+    }
+
+    .foot {
+      border-top: 1px solid #e8e9e4;
+      margin-top: 23px;
+      padding-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      color: #999b94;
+      font-size: 11px
+    }
+
+    .side {
+      padding: 18px;
+      margin-bottom: 13px
+    }
+
+    .side h3 {
+      font-size: 12px;
+      margin: 0 0 14px
+    }
+
+    .author {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #e8ebe4;
+      color: #687a5c
+    }
+
+    .small {
+      font-size: 11px;
+      color: #92948c;
+      margin-top: 4px
+    }
+
+    .stats {
+      border-top: 1px solid #e8e9e4;
+      margin-top: 15px;
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      color: #96988f;
+      font-size: 10px
+    }
+
+    .stats b {
+      display: block;
+      color: #55584f;
+      font-size: 12px;
+      margin-bottom: 4px
+    }
+
+    .outline {
+      display: grid;
+      gap: 10px;
+      font-size: 11px
+    }
+
+    .outline a {
+      color: #77796f;
+      text-decoration: none
+    }
+
+    .outline a.sub {
+      padding-left: 12px;
+      color: #999b94
+    }
+
+    .chips span {
+      display: inline-block;
+      background: #f0f2ed;
+      color: #718064;
+      padding: 4px 7px;
+      margin: 2px;
+      font-size: 10px
+    }
+
+    .editor {
+      margin-top: 18px;
+      border: 1px solid #e8e9e4
+    }
+
+    .editor summary {
+      cursor: pointer;
+      background: rgba(255, 255, 255, .55);
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #77796f
+    }
+
+    .editor textarea {
+      width: 100%;
+      height: 210px;
+      resize: vertical;
+      border: 0;
+      border-top: 1px solid #e8e9e4;
+      padding: 12px;
+      font: 12px/1.7 Menlo, monospace
+    }
+
+    .editor button {
+      margin: 8px;
+      border: 0;
+      background: #71815f;
+      color: white;
+      padding: 7px 12px;
+      cursor: pointer
+    }
+
+    .end {
+      text-align: center;
+      color: #a1a39c;
+      font-size: 10px;
+      padding: 20px
+    }
+
+    @media(max-width:850px) {
+      .shell {
+        padding: 0 15px
+      }
+
+      .grid {
+        grid-template-columns: 1fr
+      }
+
+      .article {
+        padding: 26px
+      }
+    }
+
+    @media(max-width:560px) {
+      .shell {
+        margin: 18px auto
+      }
+
+      .article {
+        padding: 22px 17px
+      }
+
+      .title {
+        font-size: 22px
+      }
+
+      .meta {
+        flex-wrap: wrap
+      }
+
+      .tag {
+        margin-left: 0
+      }
+    }
+  </style>
+</head>
+<style>
+  /* ===== 文章正文字体（想换字体只改下面两处） ===== */
+  /* 1) 文件路径：把新 ttf 放进 assets/fonts/，这里写相对路径 */
+  @font-face {
+    font-family: "ArticleFont";
+    src: url("assets/fonts/KirakaraMaru.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  /* 2) 字体栈：第一个是本机加载的 ttf，后面是没有该字形的字符/加载失败时的后备字体 */
+  :root {
+    --article-font: "ArticleFont", "PingFang SC", "Microsoft YaHei", sans-serif
+  }
+
+  .article {
+    font-family: var(--article-font)
+  }
+</style>
+
+<body>
+  <main class=shell>
+    <div class=grid>
+      <article class=article>
+        <h1 class=title>Swift 项目底层框架（万能）</h1>
+        <div class=meta><strong>冯汉栩，iOS开发工程师</strong><span>|</span><span>2026-08-18
+            15:56:13</span><span>|</span><span>阅读：34</span><span class=tag>iOS</span></div>
+        <div class=lead>iOS 面试题很喜欢去提问关于深拷贝与浅拷贝的区别。今天做公司项目的时候，写到一个购票页面遇到了这个问题，印象深刻。</div>
+        <div class=content id=content></div>
+        <div class=foot><span>最后更新于 2026-08-18</span></div>
+        <details class=editor>
+          <summary>编辑 Markdown 正文</summary><textarea id=source></textarea><button id=update>更新预览</button>
+        </details>
+      </article>
+    </div>
+    <div class=end>© 2026 字间 · 用文字记录思考</div>
+  </main>
+  <script>
+    const md = `# 深拷贝与浅拷贝
+
+在 Swift 项目中，理解值类型与引用类型的拷贝行为，可以帮助我们避免意料之外的数据修改。下面结合项目里的分割线组件，记录一次实际开发中的思考。
+
+## 1. 先看一个实际场景
+
+开发购票页面时，我们需要在视图中间添加一条轻量的分割线。封装成独立组件之后，布局代码会更加清晰：
+
+\`\`\`swift
+let separatorLine = DashLineView()
+separatorLine.lineColor = .lightGray
+separatorLine.translatesAutoresizingMaskIntoConstraints = false
+view.addSubview(separatorLine)
+
+separatorLine.snp.makeConstraints { make in
+    make.center.equalToSuperview()
+    make.width.equalToSuperview()
+    make.height.equalTo(1)
+}
+\`\`\`
+
+### 1.1 为什么要封装
+
+封装的目的不只是减少重复代码，也包括让**视图职责更清楚**。当组件只负责绘制分割线，调用方就不必关心内部实现。
+
+> 一个好的小组件，应该让使用方式足够直观，同时把变化控制在自己的边界内。
+
+## 2. 值类型和引用类型
+
+Swift 的结构体和枚举是值类型，赋值时会产生独立的值；类是引用类型，赋值后多个变量可能指向同一个实例。
+
+| 类型 | 赋值行为 | 修改影响 |
+| --- | --- | --- |
+| struct / enum | 值拷贝 | 各自独立 |
+| class | 共享引用 | 可能互相影响 |
+
+### 2.1 一个简单例子
+
+\`\`\`swift
+struct Ticket {
+    var seat: String
+}
+
+var first = Ticket(seat: "A12")
+var second = first
+second.seat = "B08"
+
+print(first.seat)  // A12
+print(second.seat) // B08
+\`\`\`
+
+## 3. 开发中的检查清单
+
+1. 明确模型是值类型还是引用类型。
+2. 检查集合中是否包含可变引用对象。
+3. 需要隔离状态时，在边界处显式复制数据。
+
+配图可以通过 Markdown 图片语法插入：
+
+![代码工作台示意图](https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80)
+
+## 4. 小结
+
+写页面时遇到的数据共享问题，通常可以从类型语义和对象所有权入手。先确认数据该不该共享，再选择合适的模型，代码就会更容易维护。
+
+行内代码：\`let copy = original\`。`;
+    const source = document.getElementById('source'); source.value = md; function render() {
+      const box = document.getElementById('content');
+      if (!window.marked) { box.textContent = source.value; return }
+      const esc = v => String(v).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const renderer = new marked.Renderer();
+      renderer.code = (token, info) => {
+        const isStr = typeof token === 'string';
+        const body = esc(isStr ? token : (token && token.text) || '');
+        const lang = String((isStr ? info : (token && token.lang)) || 'text').replace(/[^a-z0-9+#.-]/gi, '') || 'text';
+        return '<div class=code><div class=codehead><span>' + lang + '</span>'
+          + '<button type=button onclick="navigator.clipboard.writeText(this.closest(\'.code\').querySelector(\'code\').innerText)">复制代码</button>'
+          + '</div><pre><code>' + body + '</code></pre></div>';
+      };
+      marked.setOptions({ renderer, gfm: true });
+      const html = marked.parse(source.value);
+      box.innerHTML = window.DOMPurify ? DOMPurify.sanitize(html) : html;
+      [...box.querySelectorAll('h1,h2,h3')].forEach((h, i) => { h.id = 'heading-' + i });
+    }
+    document.getElementById('update').onclick = render; render()
+  </script>
+</body>
+
+</html>
