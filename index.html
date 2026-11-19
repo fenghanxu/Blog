@@ -17,6 +17,7 @@
   <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.4 8h9M9.2 4.8 12.4 8l-3.2 3.2"/></symbol>
   <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 2.4h5l3 3v8.2H4z"/><path d="M6.2 7.6h3.6M6.2 10.2h2.4"/></symbol>
   <symbol id="i-pen" viewBox="0 0 16 16"><path d="M3 13h2.1l6.9-6.9a1.7 1.7 0 0 0 0-2.4l-.7-.7a1.7 1.7 0 0 0-2.4 0L3 9.9Z"/><path d="M9.6 3.6 12.4 6.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3.4 4.6h9.2M6.2 4.6V3.1h3.6v1.5M5.2 4.6l.5 8c0 .5.4.9.9.9h2.8c.5 0 .9-.4.9-.9l.5-8M6.7 7v3.7M9.3 7v3.7"/></symbol>
   <symbol id="i-archive" viewBox="0 0 16 16"><rect x="2.2" y="3" width="11.6" height="3.2" rx="1"/><path d="M3.3 6.2v6.1c0 .7.5 1.2 1.2 1.2h7c.7 0 1.2-.5 1.2-1.2V6.2M6.3 9h3.4"/></symbol>
   <symbol id="i-download" viewBox="0 0 16 16"><path d="M8 2.8v7.1M5.2 7.3 8 10.1l2.8-2.8M3.2 12.8h9.6"/></symbol>
   <symbol id="i-upload" viewBox="0 0 16 16"><path d="M8 10.3V3.2M5.2 6 8 3.2 10.8 6M3.2 12.8h9.6"/></symbol>
@@ -27,12 +28,13 @@
   <a class="write-btn" href="edit.html"><svg class="icon"><use href="#i-plus"/></svg>写文章</a>
 
   <nav class="tabs" id="tabs" aria-label="文章分类">
-    <button class="tab is-active" type="button" data-cat="all">全部文章</button>
+    <button class="tab is-active" type="button" data-cat="all">全部文章<span class="tab-count" data-count="all">00</span></button>
     <button class="tab" type="button" data-cat="frontend">前端开发<span class="tab-count" data-count="frontend">00</span></button>
     <button class="tab" type="button" data-cat="backend">后端架构<span class="tab-count" data-count="backend">00</span></button>
     <button class="tab" type="button" data-cat="ai">AI 与工具<span class="tab-count" data-count="ai">00</span></button>
     <button class="tab" type="button" data-cat="engineering">工程效率<span class="tab-count" data-count="engineering">00</span></button>
     <button class="tab" type="button" data-cat="essay">随笔<span class="tab-count" data-count="essay">00</span></button>
+    <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
   </nav>
 
   <div class="tools">
@@ -143,6 +145,32 @@
 
       <p class="backup-note">备份保存在本机；清空浏览器站点数据前，请先把备份文件移到其他位置。</p>
     </div>
+  </section>
+</div>
+
+<div class="modal" id="deleteModal" hidden>
+  <div class="modal-backdrop" data-close-delete></div>
+  <section class="modal-card delete-card" role="alertdialog" aria-modal="true" aria-labelledby="deleteTitle" aria-describedby="deleteHint">
+    <header class="modal-head">
+      <div>
+        <h2 id="deleteTitle">删除这篇文章？</h2>
+        <p>删除后无法恢复，请确认后再继续。</p>
+      </div>
+      <button class="modal-close" type="button" data-close-delete aria-label="关闭删除确认">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </header>
+    <div class="modal-body delete-body">
+      <span class="delete-warning-icon"><svg class="icon"><use href="#i-trash"/></svg></span>
+      <div>
+        <p class="delete-hint" id="deleteHint">将永久删除以下文章及其本地图片：</p>
+        <p class="delete-article-name" id="deleteArticleName"></p>
+      </div>
+    </div>
+    <footer class="delete-foot">
+      <button class="delete-cancel" type="button" data-close-delete>取消</button>
+      <button class="delete-confirm" id="confirmDeleteBtn" type="button"><svg class="icon"><use href="#i-trash"/></svg>确认删除</button>
+    </footer>
   </section>
 </div>
 

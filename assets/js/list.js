@@ -23,6 +23,8 @@
   const titleEl = $('#listTitle');
   const sortSelect = $('#sortSelect');
   const searchInput = $('#searchInput');
+  const tabsEl = $('#tabs');
+  const tabIndicator = $('#tabIndicator');
   const emptyTitle = $('.empty-title');
   const emptyHint = $('.empty-hint');
   const emptyBtn = $('.empty-btn');
@@ -35,8 +37,14 @@
   const backupFileLabel = $('#backupFileLabel');
   const backupFileText = $('#backupFileText');
   const backupStats = $('#backupStats');
+  const deleteModal = $('#deleteModal');
+  const deleteArticleName = $('#deleteArticleName');
+  const confirmDeleteBtn = $('#confirmDeleteBtn');
 
   let toastTimer = 0;
+  let pendingDeleteId = null;
+  let deleteTrigger = null;
+  let deleting = false;
   function toast(message) {
     toastEl.textContent = message;
     toastEl.classList.add('is-show');
@@ -48,7 +56,7 @@
     return articles.reduce((acc, item) => {
       acc[item.cat] = (acc[item.cat] || 0) + 1;
       return acc;
-    }, {});
+    }, { all: articles.length });
   }
 
   function paintCounts() {
@@ -56,6 +64,20 @@
     document.querySelectorAll('.tab-count').forEach((el) => {
       el.textContent = Util.pad2(map[el.dataset.count] || 0);
     });
+  }
+
+  function syncTabIndicator(animate = true) {
+    const activeTab = tabsEl.querySelector('.tab.is-active');
+    if (!activeTab || !tabIndicator) return;
+
+    if (!animate) tabIndicator.classList.add('is-instant');
+    tabIndicator.style.width = `${activeTab.offsetWidth}px`;
+    tabIndicator.style.transform = `translate3d(${activeTab.offsetLeft}px,0,0)`;
+
+    if (!animate) {
+      tabIndicator.getBoundingClientRect();
+      requestAnimationFrame(() => tabIndicator.classList.remove('is-instant'));
+    }
   }
 
   function searchText(item) {
@@ -89,8 +111,8 @@
       <article class="row" data-id="${Util.escapeHtml(item.id)}">
         <span class="idx">${Util.pad2(index)}</span>
         <a class="row-main" href="${detailUrl}" aria-label="阅读：${Util.escapeHtml(item.title)}">
-          <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
           <h2 class="title">${Util.escapeHtml(item.title)}</h2>
+          <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
           <div class="tags">${tags}</div>
         </a>
         <div class="row-side">
@@ -101,9 +123,14 @@
             <span class="dot">·</span>
             <span class="likes"><svg class="icon"><use href="#i-heart"/></svg>${item.likes || 0}</span>
           </div>
-          <a class="edit-link" href="${editUrl}" aria-label="编辑：${Util.escapeHtml(item.title)}">
-            <svg class="icon"><use href="#i-pen"/></svg>编辑
-          </a>
+          <div class="row-actions">
+            <a class="edit-link" href="${editUrl}" aria-label="编辑：${Util.escapeHtml(item.title)}">
+              <svg class="icon"><use href="#i-pen"/></svg>编辑
+            </a>
+            <button class="delete-btn" type="button" data-delete-id="${Util.escapeHtml(item.id)}" aria-label="删除：${Util.escapeHtml(item.title)}">
+              <svg class="icon"><use href="#i-trash"/></svg>删除
+            </button>
+          </div>
         </div>
       </article>`;
   }
@@ -293,10 +320,76 @@
     }
   }
 
+  /* ---------------- 删除文章 ---------------- */
+  function openDelete(id, trigger) {
+    const article = articles.find((item) => item.id === id);
+    if (!article) {
+      toast('文章不存在或已被删除');
+      return;
+    }
+
+    pendingDeleteId = id;
+    deleteTrigger = trigger;
+    deleteArticleName.textContent = `《${article.title}》`;
+    confirmDeleteBtn.disabled = false;
+    confirmDeleteBtn.innerHTML = '<svg class="icon"><use href="#i-trash"/></svg>确认删除';
+    deleteModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    deleteModal.querySelector('.delete-cancel')?.focus();
+  }
+
+  function closeDelete() {
+    if (deleting) return;
+    deleteModal.hidden = true;
+    document.body.style.overflow = '';
+    pendingDeleteId = null;
+    const trigger = deleteTrigger;
+    deleteTrigger = null;
+    if (trigger?.isConnected) trigger.focus();
+  }
+
+  async function confirmDeleteArticle() {
+    if (!pendingDeleteId || deleting) return;
+
+    const id = pendingDeleteId;
+    deleting = true;
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.textContent = '正在删除…';
+
+    try {
+      await window.BlogDB.ready();
+      const stored = await window.BlogDB.get(id);
+      const usedImages = Util.localImageIds(stored?.body || '');
+      await window.BlogDB.remove(id);
+      await window.BlogDB.cleanupImages(usedImages).catch(() => 0);
+      localStorage.removeItem(`zjian.edit.draft.${id}`);
+
+      articles = articles.filter((item) => item.id !== id);
+      paintCounts();
+      render();
+      deleting = false;
+      closeDelete();
+      toast('文章已删除');
+    } catch (error) {
+      deleting = false;
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.innerHTML = '<svg class="icon"><use href="#i-trash"/></svg>确认删除';
+      toast(error.message || '删除失败，请重试');
+    }
+  }
+
   /* ---------------- 事件 ---------------- */
+  listEl.addEventListener('click', (event) => {
+    const deleteButton = event.target.closest('[data-delete-id]');
+    if (!deleteButton) return;
+    event.preventDefault();
+    openDelete(deleteButton.dataset.deleteId, deleteButton);
+  });
+
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((item) => item.classList.toggle('is-active', item === tab));
+      syncTabIndicator();
       state.cat = tab.dataset.cat;
       state.page = 1;
       render();
@@ -347,6 +440,7 @@
     state.page = 1;
     searchInput.value = '';
     document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === 'all'));
+    syncTabIndicator();
     render();
     searchInput.focus();
   });
@@ -357,8 +451,14 @@
   backupModal.querySelectorAll('[data-close-backup]').forEach((element) => {
     element.addEventListener('click', closeBackup);
   });
+  deleteModal.querySelectorAll('[data-close-delete]').forEach((element) => {
+    element.addEventListener('click', closeDelete);
+  });
+  confirmDeleteBtn.addEventListener('click', confirmDeleteArticle);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !backupModal.hidden) closeBackup();
+    if (event.key !== 'Escape') return;
+    if (!deleteModal.hidden) closeDelete();
+    else if (!backupModal.hidden) closeBackup();
   });
 
   /* ---------------- 初始化 ---------------- */
@@ -367,5 +467,7 @@
   if (params.get('saved') === '1') toast('文章已保存');
 
   paintCounts();
+  syncTabIndicator(false);
+  window.addEventListener('resize', () => syncTabIndicator(false));
   loadArticles();
 })();
