@@ -1,7 +1,7 @@
 /* ============================================================
    edit.html 交互
    - Markdown 实时预览 / 分栏拖拽 / 目录生成 / 字数统计
-   - 工具栏插入、草稿本地保存、快捷导出
+   - 新建 / 编辑文章、IndexedDB 发布、草稿本地保存、快捷导出
    ============================================================ */
 (() => {
   'use strict';
@@ -20,8 +20,29 @@
   const tocBadge = $('#tocBadge');
   const workspace = $('#workspace');
   const toastEl = $('#toast');
+  const categorySelect = $('#category');
+  const tagsInput = $('#tagsInput');
+  const summaryInput = $('#summaryInput');
+  const summaryCount = $('#summaryCount');
+  const metaPanel = $('#metaPanel');
+  const metaBrief = $('#metaBrief');
+  const backLink = $('#backLink');
+  const publishBtn = $('#publishBtn');
+  const imageFile = $('#imageFile');
+  const Util = window.BlogUtil;
+  const resolveImages = Util.createImageResolver();
 
-  const DRAFT_KEY = 'zjian.edit.draft';
+  const DRAFT_PREFIX = 'zjian.edit.draft';
+  let articleId = Util.queryParam('id') || null;
+  let currentArticle = null;
+  let isLeaving = false;
+  let draftKey = draftKeyFor(articleId);
+  let publishing = false;
+  let dirty = false;
+
+  function draftKeyFor(id) {
+    return id ? `${DRAFT_PREFIX}.${id}` : `${DRAFT_PREFIX}.new`;
+  }
 
   /* ---------------- 基础工具 ---------------- */
   const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (c) => ({
@@ -55,6 +76,7 @@
 
     if (window.DOMPurify) html = window.DOMPurify.sanitize(html);
     preview.innerHTML = html;
+    resolveImages(preview).catch(() => {});
 
     const headings = $$('h1, h2, h3', preview);
     headings.forEach((h, i) => { h.id = `heading-${i}`; });
@@ -126,7 +148,7 @@
     source.focus();
     source.setSelectionRange(selStart, selEnd);
     renderMarkdown();
-    scheduleAutosave();
+    markDirty();
   }
 
   function surround(before, after, placeholder) {
@@ -176,6 +198,71 @@
     applyEdit(next, start + text.length, start + text.length);
   }
 
+  async function uploadImages(files) {
+    const selected = Array.from(files || []).filter((file) => file && String(file.type).startsWith('image/'));
+    if (!selected.length) {
+      toast('请选择图片文件');
+      return;
+    }
+
+    try {
+      await window.BlogDB.ready();
+    } catch (error) {
+      toast(error.message || '图片存储不可用');
+      return;
+    }
+
+    const snippets = [];
+    let failed = 0;
+    for (const file of selected.slice(0, 12)) {
+      try {
+        const image = await window.BlogDB.addImage(file);
+        const alt = String(file.name || '图片').split('.')[0].split(']').join('').trim() || '图片';
+        snippets.push(`![${alt}](blog-image/${encodeURIComponent(image.id)})`);
+      } catch (error) {
+        failed += 1;
+      }
+    }
+
+    if (snippets.length) {
+      insertBlock(snippets.join('\n\n'));
+      toast(failed ? `已插入 ${snippets.length} 张图片，${failed} 张失败` : `已插入 ${snippets.length} 张本地图片`);
+    } else {
+      toast('图片没有插入，请检查文件类型和大小（单张不超过 10MB）');
+    }
+
+    imageFile.value = '';
+  }
+
+  async function exportMarkdown() {
+    const name = (titleInput.value.trim() || '无标题').replace(/[\\/:*?"<>|]/g, '_');
+    let body = source.value;
+    let missing = 0;
+
+    for (const id of Util.localImageIds(body)) {
+      try {
+        const image = await window.BlogDB.getImage(id);
+        if (!image || !image.blob) {
+          missing += 1;
+          continue;
+        }
+        const dataUrl = await Util.blobToDataUrl(image.blob);
+        body = body.split(`blog-image/${encodeURIComponent(id)}`).join(dataUrl);
+        body = body.split(`blog-image/${id}`).join(dataUrl);
+      } catch (error) {
+        missing += 1;
+      }
+    }
+
+    const blob = new Blob([body], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(missing ? `Markdown 已导出，${missing} 张图片未找到` : 'Markdown 已导出，本地图片已内嵌');
+  }
+
   /* ---------------- 命令 ---------------- */
   const TABLE_SNIPPET = '| 列一 | 列二 | 列三 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |';
 
@@ -196,17 +283,20 @@
       case 'hr': return insertBlock('---');
       case 'toc': return insertBlock('@[TOC]');
       case 'link': return surround('[', '](https://)', '链接文字');
-      case 'image-url':
-      case 'image': {
+      case 'image': return imageFile.click();
+      case 'image-url': {
         const url = window.prompt('图片地址（支持网络图片或相对路径）', 'assets/images/');
         if (!url) return;
         const alt = window.prompt('图片描述（可留空）', '') || '图片';
         return insertAtCursor(`![${alt}](${url})`);
       }
       case 'save': return saveDraft(true);
+      case 'delete': return deleteArticle();
       case 'history': return toast('历史版本功能尚未接入');
       case 'clear-draft': {
-        localStorage.removeItem(DRAFT_KEY);
+        clearTimeout(autosaveTimer);
+        dirty = false;
+        localStorage.removeItem(draftKey);
         return toast('本地草稿已清除');
       }
       case 'clear': {
@@ -215,16 +305,7 @@
         applyEdit('', 0, 0);
         return toast('正文已清空');
       }
-      case 'export': {
-        const name = (titleInput.value.trim() || '无标题').replace(/[\\/:*?"<>|]/g, '_');
-        const blob = new Blob([source.value], { type: 'text/markdown;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${name}.md`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        return toast('已导出 Markdown 文件');
-      }
+      case 'export': return exportMarkdown();
       case 'copy-html': {
         navigator.clipboard?.writeText(preview.innerHTML)
           .then(() => toast('已复制渲染后的 HTML'))
@@ -362,11 +443,32 @@
   /* ---------------- 草稿 ---------------- */
   let autosaveTimer = 0;
 
-  function saveDraft(notify = false) {
-    const payload = { title: titleInput.value, body: source.value, savedAt: Date.now() };
+  function readDraft() {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-      if (notify) toast('草稿已保存到本地');
+      return JSON.parse(localStorage.getItem(draftKey) || 'null');
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function collectDraft() {
+    return {
+      title: titleInput.value,
+      body: source.value,
+      cat: categorySelect.value,
+      tags: Util.parseTags(tagsInput.value),
+      summary: summaryInput.value,
+      articleId,
+      savedAt: Date.now()
+    };
+  }
+
+  function saveDraft(notify = false) {
+    if (!dirty && !notify) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(collectDraft()));
+      dirty = false;
+      if (notify) toast(articleId ? '草稿已保存到本地' : '草稿已保存，下次写文章可以继续');
     } catch (err) {
       if (notify) toast('保存失败：浏览器禁用了本地存储');
     }
@@ -377,26 +479,237 @@
     autosaveTimer = setTimeout(() => saveDraft(false), 1000);
   }
 
-  function loadDraft() {
-    let draft = null;
-    try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (err) { draft = null; }
+  function markDirty() {
+    dirty = true;
+    scheduleAutosave();
+  }
+
+  function applyDraft(draft) {
     if (!draft) return;
-    if (draft.title) titleInput.value = draft.title;
-    if (draft.body) source.value = draft.body;
+    titleInput.value = draft.title || '';
+    source.value = draft.body || '';
+    categorySelect.value = draft.cat || 'essay';
+    tagsInput.value = Array.isArray(draft.tags) ? draft.tags.join(', ') : (draft.tags || '');
+    summaryInput.value = draft.summary || '';
+    updateSummaryCount();
+    updateMetaBrief();
     updateStats();
+  }
+
+  function updateSummaryCount() {
+    summaryCount.textContent = `${summaryInput.value.length}/160`;
+  }
+
+  function updateMetaBrief() {
+    const tags = Util.parseTags(tagsInput.value);
+    const cat = Util.categoryLabel(categorySelect.value);
+    const tagText = tags.length ? `${tags.length} 个标签` : '未加标签';
+    const summaryText = summaryInput.value.trim() ? '已填写摘要' : '摘要自动生成';
+    metaBrief.textContent = `${cat} · ${tagText} · ${summaryText}`;
+  }
+
+  function populateCategories() {
+    categorySelect.innerHTML = Util.CATEGORIES
+      .map((item) => `<option value="${item.id}">${Util.escapeHtml(item.label)}</option>`)
+      .join('');
+  }
+
+  function fillForm(article) {
+    titleInput.value = article.title || '';
+    source.value = article.body || '';
+    categorySelect.value = article.cat || 'essay';
+    tagsInput.value = (article.tags || []).join(', ');
+    summaryInput.value = article.summary || '';
+    updateSummaryCount();
+    updateMetaBrief();
+    updateStats();
+  }
+
+  function setPublishLabel(text) {
+    const label = $('#publishText');
+    if (label) label.textContent = text;
+  }
+
+  async function loadPage() {
+    populateCategories();
+    categorySelect.value = 'essay';
+    updateSummaryCount();
+    updateMetaBrief();
+
+    if (articleId) {
+      try {
+        await window.BlogDB.ready();
+        currentArticle = await window.BlogDB.get(articleId);
+      } catch (error) {
+        toast(error.message || '读取文章失败');
+      }
+    }
+
+    if (currentArticle) {
+      fillForm(currentArticle);
+      document.title = `编辑：${currentArticle.title} · 字间`;
+      setPublishLabel('保存修改');
+      metaPanel.open = false;
+      backLink.href = `detail.html?id=${encodeURIComponent(articleId)}`;
+      backLink.querySelector('span').textContent = '返回文章';
+    } else {
+      if (articleId) {
+        toast('文章不存在，已切换到新建模式');
+        articleId = null;
+        draftKey = draftKeyFor(null);
+        history.replaceState(null, '', 'edit.html');
+      }
+      document.title = '写文章 · 字间';
+      setPublishLabel('发布文章');
+      metaPanel.open = true;
+      backLink.href = 'index.html';
+      backLink.querySelector('span').textContent = '返回列表';
+    }
+
+    const draft = readDraft();
+    const baseTime = currentArticle ? new Date(currentArticle.updatedAt).getTime() : 0;
+
+    if (draft && draft.savedAt > baseTime + 500) {
+      let restore = true;
+      if (currentArticle) {
+        const when = new Date(draft.savedAt).toLocaleString('zh-CN');
+        restore = window.confirm(`发现这篇未发布的本地草稿（${when}），要恢复吗？`);
+      }
+      if (restore) {
+        applyDraft(draft);
+        toast('已恢复本地草稿');
+      } else {
+        localStorage.removeItem(draftKey);
+      }
+    } else if (draft) {
+      localStorage.removeItem(draftKey);
+    }
+
+    dirty = false;
+  }
+
+  async function publishArticle() {
+    if (publishing) return;
+
+    const title = titleInput.value.trim();
+    if (!title) {
+      toast('先给文章起个标题吧');
+      titleInput.focus();
+      return;
+    }
+    if (!source.value.trim()) {
+      toast('正文还是空的，写点内容再发布吧');
+      source.focus();
+      return;
+    }
+
+    const payload = {
+      title,
+      body: source.value,
+      cat: categorySelect.value,
+      tags: Util.parseTags(tagsInput.value),
+      summary: summaryInput.value.trim() || Util.summarize(source.value)
+    };
+
+    publishing = true;
+    publishBtn.disabled = true;
+    clearTimeout(autosaveTimer);
+    setPublishLabel(articleId ? '保存中…' : '发布中…');
+
+    try {
+      const editing = Boolean(articleId);
+      const saved = editing
+        ? await window.BlogDB.update(articleId, payload)
+        : await window.BlogDB.create(payload);
+
+      localStorage.removeItem(draftKey);
+      isLeaving = true;
+      const flag = editing ? 'updated' : 'published';
+      window.location.href = `detail.html?id=${encodeURIComponent(saved.id)}&${flag}=1`;
+    } catch (error) {
+      publishing = false;
+      publishBtn.disabled = false;
+      setPublishLabel(articleId ? '保存修改' : '发布文章');
+      toast(error.message || '保存失败，请重试');
+    }
+  }
+
+  async function deleteArticle() {
+    if (!articleId) {
+      toast('新文章还没有保存，无需删除');
+      return;
+    }
+    const title = titleInput.value.trim() || currentArticle?.title || '这篇文章';
+    if (!window.confirm(`确定删除《${title}》吗？删除后无法恢复。`)) return;
+
+    try {
+      const stored = await window.BlogDB.get(articleId);
+      const usedImages = Util.localImageIds(stored?.body || source.value);
+      await window.BlogDB.remove(articleId);
+      await window.BlogDB.cleanupImages(usedImages).catch(() => 0);
+      localStorage.removeItem(draftKey);
+      isLeaving = true;
+      window.location.href = 'index.html?deleted=1';
+    } catch (error) {
+      toast(error.message || '删除失败，请重试');
+    }
   }
 
   /* ---------------- 交互事件 ---------------- */
   source.addEventListener('input', () => {
     renderMarkdown();
-    scheduleAutosave();
+    markDirty();
   });
   ['keyup', 'click', 'select'].forEach((type) => source.addEventListener(type, updateStats));
   source.addEventListener('input', updateStats);
 
   titleInput.addEventListener('input', () => {
     updateStats();
-    scheduleAutosave();
+    markDirty();
+  });
+
+  categorySelect.addEventListener('change', () => {
+    updateMetaBrief();
+    markDirty();
+  });
+
+  tagsInput.addEventListener('input', () => {
+    updateMetaBrief();
+    markDirty();
+  });
+
+  summaryInput.addEventListener('input', () => {
+    updateSummaryCount();
+    updateMetaBrief();
+    markDirty();
+  });
+
+  imageFile.addEventListener('change', () => uploadImages(imageFile.files));
+
+  source.addEventListener('paste', (event) => {
+    const files = Array.from(event.clipboardData?.files || [])
+      .filter((file) => String(file.type).startsWith('image/'));
+    if (!files.length) return;
+    event.preventDefault();
+    uploadImages(files);
+  });
+
+  const editPane = $('.pane-edit');
+  editPane.addEventListener('dragover', (event) => {
+    if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    editPane.classList.add('is-dragover');
+  });
+  editPane.addEventListener('dragleave', (event) => {
+    if (event.target === editPane) editPane.classList.remove('is-dragover');
+  });
+  editPane.addEventListener('drop', (event) => {
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
+    event.preventDefault();
+    editPane.classList.remove('is-dragover');
+    uploadImages(files);
   });
 
   source.addEventListener('keydown', (event) => {
@@ -411,14 +724,7 @@
   });
 
   $('#draftBtn').addEventListener('click', () => saveDraft(true));
-  $('#publishBtn').addEventListener('click', () => {
-    if (!titleInput.value.trim()) {
-      titleInput.value = '【无标题】';
-      updateStats();
-    }
-    saveDraft(false);
-    toast('已发布（界面演示，尚未接入后端）');
-  });
+  publishBtn.addEventListener('click', publishArticle);
 
   $('#richBtn').addEventListener('click', () => toast('富文本模式尚未接入，当前使用 Markdown 编辑'));
   $('#feedbackBtn').addEventListener('click', () => toast('反馈入口待接入'));
@@ -434,10 +740,19 @@
     toast('已恢复等宽分栏');
   });
 
-  window.addEventListener('beforeunload', () => saveDraft(false));
+  window.addEventListener('beforeunload', () => {
+    if (!isLeaving) saveDraft(false);
+  });
 
   /* ---------------- 初始化 ---------------- */
-  loadDraft();
-  renderMarkdown();
-  setMode('split');
+  (async () => {
+    try {
+      await loadPage();
+    } catch (error) {
+      toast(error.message || '页面初始化失败');
+    }
+    renderMarkdown();
+    setMode('split');
+    updateStats();
+  })();
 })();

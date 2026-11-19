@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<!-- 文章列表页（站点入口）：结构在本文件，样式在 assets/css/list.css，数据与交互在 assets/js/list.js -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>全部文章 · 字间</title>
+<link rel="stylesheet" href="assets/css/list.css">
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.4v9.2M3.4 8h9.2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7.2" cy="7.2" r="4.4"/><path d="m10.6 10.6 2.6 2.6"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 16 16"><path d="m4.8 6.4 3.2 3.2 3.2-3.2"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 16 16"><path d="M8 13.1 3.9 9.2A2.9 2.9 0 0 1 8 5.1a2.9 2.9 0 0 1 4.1 4.1Z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.4 8h9M9.2 4.8 12.4 8l-3.2 3.2"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 2.4h5l3 3v8.2H4z"/><path d="M6.2 7.6h3.6M6.2 10.2h2.4"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 16 16"><path d="M3 13h2.1l6.9-6.9a1.7 1.7 0 0 0 0-2.4l-.7-.7a1.7 1.7 0 0 0-2.4 0L3 9.9Z"/><path d="M9.6 3.6 12.4 6.4"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 16 16"><rect x="2.2" y="3" width="11.6" height="3.2" rx="1"/><path d="M3.3 6.2v6.1c0 .7.5 1.2 1.2 1.2h7c.7 0 1.2-.5 1.2-1.2V6.2M6.3 9h3.4"/></symbol>
+  <symbol id="i-download" viewBox="0 0 16 16"><path d="M8 2.8v7.1M5.2 7.3 8 10.1l2.8-2.8M3.2 12.8h9.6"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 16 16"><path d="M8 10.3V3.2M5.2 6 8 3.2 10.8 6M3.2 12.8h9.6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></symbol>
+</svg>
+
+<header class="topbar">
+  <a class="write-btn" href="edit.html"><svg class="icon"><use href="#i-plus"/></svg>写文章</a>
+
+  <nav class="tabs" id="tabs" aria-label="文章分类">
+    <button class="tab is-active" type="button" data-cat="all">全部文章</button>
+    <button class="tab" type="button" data-cat="frontend">前端开发<span class="tab-count" data-count="frontend">00</span></button>
+    <button class="tab" type="button" data-cat="backend">后端架构<span class="tab-count" data-count="backend">00</span></button>
+    <button class="tab" type="button" data-cat="ai">AI 与工具<span class="tab-count" data-count="ai">00</span></button>
+    <button class="tab" type="button" data-cat="engineering">工程效率<span class="tab-count" data-count="engineering">00</span></button>
+    <button class="tab" type="button" data-cat="essay">随笔<span class="tab-count" data-count="essay">00</span></button>
+  </nav>
+
+  <div class="tools">
+    <button class="backup-btn" id="backupBtn" type="button" title="备份与恢复" aria-label="备份与恢复">
+      <svg class="icon"><use href="#i-archive"/></svg><span>备份</span>
+    </button>
+
+    <label class="sort">
+      <span class="sort-label">排序：</span>
+      <select id="sortSelect" aria-label="排序方式">
+        <option value="latest">最新发布</option>
+        <option value="reads">最多阅读</option>
+        <option value="likes">最多点赞</option>
+      </select>
+      <svg class="icon caret"><use href="#i-caret"/></svg>
+    </label>
+
+    <label class="search">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <input id="searchInput" type="search" placeholder="搜索文章 / 标签..." autocomplete="off" aria-label="搜索文章">
+    </label>
+  </div>
+</header>
+
+<main class="shell">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <h1 id="listTitle">最新发布</h1>
+        <span class="count-pill" id="totalCount">共 0 篇</span>
+      </div>
+      <div class="panel-hint">
+        <svg class="icon"><use href="#i-doc"/></svg>
+        <span>持续记录，写给未来的自己</span>
+      </div>
+    </div>
+
+    <div class="article-list" id="articleList" aria-live="polite">
+      <div class="list-loading">正在读取文章…</div>
+    </div>
+
+    <div class="empty-state" id="emptyState" hidden>
+      <div class="empty-icon"><svg class="icon"><use href="#i-search"/></svg></div>
+      <p class="empty-title">没有找到相关文章</p>
+      <p class="empty-hint">换个关键词，或者切回“全部文章”看看</p>
+      <button class="empty-btn" type="button" id="resetFilter">重置筛选</button>
+    </div>
+
+    <footer class="panel-foot">
+      <span class="range" id="rangeInfo">显示 0-0 篇，共 0 篇</span>
+      <nav class="pager" id="pager" aria-label="分页"></nav>
+    </footer>
+  </section>
+</main>
+
+<div class="modal" id="backupModal" hidden>
+  <div class="modal-backdrop" data-close-backup></div>
+  <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+    <header class="modal-head">
+      <div>
+        <h2 id="backupTitle">备份与恢复</h2>
+        <p>把文章和本地图片打包保存，换浏览器或重装前可以先备份。</p>
+      </div>
+      <button class="modal-close" type="button" data-close-backup aria-label="关闭备份窗口">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </header>
+
+    <div class="modal-body">
+      <section class="backup-block">
+        <div class="backup-block-head">
+          <span class="backup-icon"><svg class="icon"><use href="#i-download"/></svg></span>
+          <div>
+            <h3>导出备份</h3>
+            <p>生成一个 JSON 文件，包含全部文章正文和本地图片。</p>
+          </div>
+        </div>
+        <div class="backup-row">
+          <button class="backup-primary" id="exportBackupBtn" type="button"><svg class="icon"><use href="#i-download"/></svg><span id="exportBackupText">下载备份</span></button>
+          <span class="backup-stats" id="backupStats">正在统计…</span>
+        </div>
+      </section>
+
+      <section class="backup-block">
+        <div class="backup-block-head">
+          <span class="backup-icon"><svg class="icon"><use href="#i-upload"/></svg></span>
+          <div>
+            <h3>导入备份</h3>
+            <p>选择一个之前导出的 JSON 备份文件。</p>
+          </div>
+        </div>
+        <div class="import-modes">
+          <label class="import-mode">
+            <input type="radio" name="importMode" value="merge" checked>
+            <span><b>合并导入</b><small>保留现有文章，跳过同 ID 的文章</small></span>
+          </label>
+          <label class="import-mode">
+            <input type="radio" name="importMode" value="replace">
+            <span><b>覆盖恢复</b><small>清空现有文章和图片，再恢复备份</small></span>
+          </label>
+        </div>
+        <label class="backup-file" id="backupFileLabel">
+          <svg class="icon"><use href="#i-upload"/></svg>
+          <span id="backupFileText">选择备份文件</span>
+          <input id="importFile" type="file" accept=".json,application/json" hidden>
+        </label>
+      </section>
+
+      <p class="backup-note">备份保存在本机；清空浏览器站点数据前，请先把备份文件移到其他位置。</p>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/shared.js"></script>
+<script src="assets/js/seed.js"></script>
+<script src="assets/js/db.js"></script>
+<script src="assets/js/list.js"></script>
+</body>
+</html>

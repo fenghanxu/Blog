@@ -5,8 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>写文章 · 字间</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+<script src="assets/vendor/marked.min.js"></script>
+<script src="assets/vendor/purify.min.js"></script>
 <link rel="stylesheet" href="assets/css/edit.css">
 </head>
 <body>
@@ -33,7 +33,7 @@
 </svg>
 
 <header class="topbar">
-  <a class="back" href="detail.html"><svg class="icon"><use href="#i-back"/></svg>返回</a>
+  <a class="back" href="index.html" id="backLink"><svg class="icon"><use href="#i-back"/></svg><span>返回列表</span></a>
   <div class="title-wrap">
     <span class="title-icon" aria-hidden="true"><svg class="icon"><use href="#i-pen"/></svg></span>
     <input id="title" class="title-input" type="text" maxlength="100" placeholder="【无标题】" autocomplete="off" spellcheck="false" aria-label="文章标题">
@@ -49,8 +49,31 @@
         <button class="mode is-active" data-mode="split" role="tab" aria-selected="true"><svg class="icon"><use href="#i-split"/></svg>比对</button>
         <button class="mode" data-mode="preview" role="tab" aria-selected="false"><svg class="icon"><use href="#i-eye"/></svg>预览</button>
       </div>
-      <button class="rich-btn" id="richBtn" type="button"><svg class="icon"><use href="#i-swap"/></svg>使用富文本编辑器</button>
+      <button class="rich-btn" id="richBtn" type="button"><svg class="icon"><use href="#i-swap"/></svg><span>使用富文本编辑器</span></button>
     </div>
+
+    <details class="meta-panel" id="metaPanel" open>
+      <summary>
+        <span class="meta-panel-icon" aria-hidden="true"><svg class="icon"><use href="#i-doc"/></svg></span>
+        <b>文章信息</b>
+        <span class="meta-panel-brief" id="metaBrief">选择分类，补充标签和摘要</span>
+        <svg class="icon meta-caret"><use href="#i-caret"/></svg>
+      </summary>
+      <div class="meta-panel-body">
+        <label class="meta-field">
+          <span>分类</span>
+          <select id="category"></select>
+        </label>
+        <label class="meta-field">
+          <span>标签</span>
+          <input id="tagsInput" type="text" maxlength="120" placeholder="用逗号分隔，如：Swift, 组件化" autocomplete="off">
+        </label>
+        <label class="meta-field meta-field-wide">
+          <span>摘要 <em id="summaryCount">0/160</em></span>
+          <textarea id="summaryInput" maxlength="160" rows="2" placeholder="留空时自动截取正文开头"></textarea>
+        </label>
+      </div>
+    </details>
 
     <div class="toolbar" id="toolbar">
       <div class="tool-group">
@@ -105,7 +128,7 @@
           <button class="draft-btn" type="button" id="draftBtn"><svg class="icon"><use href="#i-draft"/></svg>保存草稿</button>
           <button class="draft-caret" type="button" id="draftCaret" data-menu="menu-draft" aria-label="草稿选项"><svg class="icon"><use href="#i-caret"/></svg></button>
         </div>
-        <button class="publish-btn" type="button" id="publishBtn"><svg class="icon"><use href="#i-spark"/></svg>发布文章</button>
+        <button class="publish-btn" type="button" id="publishBtn"><svg class="icon"><use href="#i-spark"/></svg><span id="publishText">发布文章</span></button>
       </div>
     </footer>
   </section>
@@ -152,12 +175,14 @@
 <div class="menu" id="menu-insert" role="menu">
   <button type="button" data-cmd="toc">目录标记<span class="menu-key">@[TOC]</span></button>
   <button type="button" data-cmd="table">插入表格</button>
+  <button type="button" data-cmd="image">本地上传图片</button>
   <button type="button" data-cmd="image-url">网络图片</button>
 </div>
 <div class="menu" id="menu-more" role="menu">
   <button type="button" data-cmd="export">导出 Markdown</button>
   <button type="button" data-cmd="copy-html">复制 HTML</button>
   <button type="button" data-cmd="clear">清空正文</button>
+  <button type="button" class="danger" data-cmd="delete">删除文章</button>
 </div>
 <div class="menu" id="menu-draft" role="menu">
   <button type="button" data-cmd="save">保存草稿</button>
@@ -165,7 +190,11 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="imageFile" accept="image/*" multiple hidden>
 
+<script src="assets/js/shared.js"></script>
+<script src="assets/js/seed.js"></script>
+<script src="assets/js/db.js"></script>
 <script src="assets/js/edit.js"></script>
 </body>
 </html>

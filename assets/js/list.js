@@ -1,132 +1,20 @@
 /* ============================================================
-   list.html 数据与交互
-   - 分类 / 搜索 / 排序 / 分页 全部由 articles 数组驱动
-   - 想加文章：往数组里追加一条即可，分类计数会自动更新
+   index.html 数据与交互
+   - 启动时从 IndexedDB 读取文章
+   - 分类 / 搜索 / 排序 / 分页在本地完成
+   - 点击标题进详情，点击“编辑”进编辑器
    ============================================================ */
 (() => {
   'use strict';
 
-  const articles = [
-    {
-      id: 'frontend-observability',
-      title: '从零搭建一套可观测的前端错误监控体系',
-      summary: '从采集、归一化、上报到告警，梳理一套能在真实项目里运行的监控方案。',
-      tags: ['前端工程', '监控告警'],
-      cat: 'frontend', date: '2025.11.12', reads: 2400, likes: 86
-    },
-    {
-      id: 'typescript-generics',
-      title: 'TypeScript 类型体操：用泛型实现安全的 API 响应映射',
-      summary: '借助条件类型、映射类型与模板字面量类型，让接口响应在编译期更可靠。',
-      tags: ['TypeScript', '类型系统'],
-      cat: 'frontend', date: '2025.11.12', reads: 2400, likes: 86
-    },
-    {
-      id: 'deploy-one-command',
-      title: '我把重复的部署流程，收敛成了一条命令',
-      summary: '把构建、测试、镜像推送和灰度发布串起来，让每次上线都可追踪、可回滚。',
-      tags: ['DevOps', '自动化'],
-      cat: 'engineering', date: '2025.11.10', reads: 1800, likes: 64
-    },
-    {
-      id: 'node-cpu-profile',
-      title: 'Node.js 服务性能排查：从 CPU 飙高到定位热点',
-      summary: '结合火焰图与运行指标，记录一次线上 CPU 使用率异常的完整排查过程。',
-      tags: ['Node.js', '性能优化'],
-      cat: 'backend', date: '2025.11.09', reads: 3100, likes: 102
-    },
-    {
-      id: 'ai-workflow',
-      title: 'AI 编程助手落地之后，我的开发工作流变了',
-      summary: '从补全代码到拆解任务，分享把 AI 工具融入日常工程实践后的真实体验。',
-      tags: ['AI 工具', '工作流'],
-      cat: 'ai', date: '2025.11.08', reads: 4200, likes: 158
-    },
-    {
-      id: 'css-grid-dashboard',
-      title: 'CSS Grid 实战：构建适配多端的数据看板',
-      summary: '用最少的断点和弹性轨道，让复杂数据在桌面端与窄屏上都清晰可读。',
-      tags: ['CSS', '响应式'],
-      cat: 'frontend', date: '2025.11.07', reads: 1500, likes: 52
-    },
-    {
-      id: 'swift-separator',
-      title: '用 Swift 封装一个可复用的分割线组件',
-      summary: '把线条绘制、颜色和约束收进一个小组件，页面布局因此简洁了不少。',
-      tags: ['Swift', '组件化'],
-      cat: 'frontend', date: '2025.11.05', reads: 980, likes: 31
-    },
-    {
-      id: 'swift-copy-semantics',
-      title: '深拷贝与浅拷贝：一次购票页面里的意外修改',
-      summary: '值类型与引用类型的拷贝语义，往往在真实业务里才暴露得最清楚。',
-      tags: ['Swift', '内存'],
-      cat: 'frontend', date: '2025.11.04', reads: 2000, likes: 73
-    },
-    {
-      id: 'api-design-details',
-      title: '后端接口设计的十个细节，让前端少加三天班',
-      summary: '字段命名、错误码、分页与幂等，这些细节决定了联调时的情绪稳定程度。',
-      tags: ['接口设计', '协作'],
-      cat: 'backend', date: '2025.11.03', reads: 2700, likes: 91
-    },
-    {
-      id: 'code-review-dialogue',
-      title: '把代码评审写成一次对话',
-      summary: '评审不是挑错，而是把隐含的假设摊开讨论，让改动更容易被理解。',
-      tags: ['团队协作', '代码评审'],
-      cat: 'essay', date: '2025.11.02', reads: 1200, likes: 44
-    },
-    {
-      id: 'ci-incremental-build',
-      title: '用增量构建把 CI 时间砍掉一半',
-      summary: '缓存粒度、依赖边界与任务编排，是构建提速里最值得先做的三件事。',
-      tags: ['构建', 'CI'],
-      cat: 'engineering', date: '2025.10.30', reads: 1600, likes: 58
-    },
-    {
-      id: 'ai-maintainable-code',
-      title: 'Prompt 工程之外：让 AI 稳定产出可维护的代码',
-      summary: '给约束、给上下文、给小步验证，比反复调整措辞更有用。',
-      tags: ['AI', 'Prompt'],
-      cat: 'ai', date: '2025.10.28', reads: 3600, likes: 120
-    },
-    {
-      id: 'cache-invalidation',
-      title: '缓存失效的老问题，和三种务实的解法',
-      summary: '从过期策略到主动更新，聊聊缓存一致性里那些绕不开的取舍。',
-      tags: ['缓存', '架构'],
-      cat: 'backend', date: '2025.10.26', reads: 2200, likes: 77
-    },
-    {
-      id: 'log-as-product',
-      title: '把日志当成产品来设计',
-      summary: '字段结构、检索路径和告警粒度，决定了出问题时你有多从容。',
-      tags: ['可观测性', '日志'],
-      cat: 'engineering', date: '2025.10.24', reads: 1400, likes: 40
-    },
-    {
-      id: 'writing-small-things',
-      title: '关于写作这件小事',
-      summary: '记录本身不会立刻带来改变，但它让思考有了可以回看的位置。',
-      tags: ['随笔', '记录'],
-      cat: 'essay', date: '2025.10.20', reads: 860, likes: 28
-    },
-    {
-      id: 'redis-distributed-lock',
-      title: 'Redis 分布式锁的三个坑',
-      summary: '过期时间、误删与续期，每个坑都值得在真正上生产前想清楚。',
-      tags: ['Redis', '并发'],
-      cat: 'backend', date: '2025.10.18', reads: 2900, likes: 95
-    }
-  ];
-
+  const Util = window.BlogUtil;
   const SORT_LABEL = { latest: '最新发布', reads: '最多阅读', likes: '最多点赞' };
   const PER_PAGE = 6;
 
   const state = { cat: 'all', q: '', sort: 'latest', page: 1 };
+  let articles = [];
 
-  const $ = (sel) => document.querySelector(sel);
+  const $ = (selector) => document.querySelector(selector);
   const listEl = $('#articleList');
   const emptyEl = $('#emptyState');
   const pagerEl = $('#pager');
@@ -135,16 +23,26 @@
   const titleEl = $('#listTitle');
   const sortSelect = $('#sortSelect');
   const searchInput = $('#searchInput');
+  const emptyTitle = $('.empty-title');
+  const emptyHint = $('.empty-hint');
+  const emptyBtn = $('.empty-btn');
+  const toastEl = $('#toast');
+  const backupBtn = $('#backupBtn');
+  const backupModal = $('#backupModal');
+  const exportBackupBtn = $('#exportBackupBtn');
+  const exportBackupText = $('#exportBackupText');
+  const importFile = $('#importFile');
+  const backupFileLabel = $('#backupFileLabel');
+  const backupFileText = $('#backupFileText');
+  const backupStats = $('#backupStats');
 
-  const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-
-  const pad2 = (n) => String(n).padStart(2, '0');
-
-  const formatReads = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-
-  const toTime = (date) => new Date(date.replace(/\./g, '-')).getTime();
+  let toastTimer = 0;
+  function toast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.add('is-show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-show'), 2600);
+  }
 
   function counts() {
     return articles.reduce((acc, item) => {
@@ -156,23 +54,24 @@
   function paintCounts() {
     const map = counts();
     document.querySelectorAll('.tab-count').forEach((el) => {
-      el.textContent = pad2(map[el.dataset.count] || 0);
+      el.textContent = Util.pad2(map[el.dataset.count] || 0);
     });
   }
 
+  function searchText(item) {
+    return [item.title, item.summary, (item.tags || []).join(' '), Util.stripMarkdown(item.body)]
+      .join(' ')
+      .toLowerCase();
+  }
+
   function filtered() {
-    const q = state.q.trim().toLowerCase();
+    const query = state.q.trim().toLowerCase();
     let items = articles.filter((item) => state.cat === 'all' || item.cat === state.cat);
 
-    if (q) {
-      items = items.filter((item) => {
-        const haystack = [item.title, item.summary, item.tags.join(' ')].join(' ').toLowerCase();
-        return haystack.includes(q);
-      });
-    }
+    if (query) items = items.filter((item) => searchText(item).includes(query));
 
     const sorters = {
-      latest: (a, b) => toTime(b.date) - toTime(a.date),
+      latest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
       reads: (a, b) => b.reads - a.reads,
       likes: (a, b) => b.likes - a.likes
     };
@@ -180,23 +79,33 @@
   }
 
   function rowTemplate(item, index) {
-    const tags = item.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
+    const tags = (item.tags || [])
+      .map((tag) => `<span class="tag">${Util.escapeHtml(tag)}</span>`)
+      .join('');
+    const detailUrl = `detail.html?id=${encodeURIComponent(item.id)}`;
+    const editUrl = `edit.html?id=${encodeURIComponent(item.id)}`;
+
     return `
-      <a class="row" href="detail.html" aria-label="${escapeHtml(item.title)}">
-        <span class="idx">${pad2(index)}</span>
-        <div class="row-body">
-          <p class="summary">${escapeHtml(item.summary)}</p>
-          <h2 class="title">${escapeHtml(item.title)}</h2>
+      <article class="row" data-id="${Util.escapeHtml(item.id)}">
+        <span class="idx">${Util.pad2(index)}</span>
+        <a class="row-main" href="${detailUrl}" aria-label="阅读：${Util.escapeHtml(item.title)}">
+          <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
+          <h2 class="title">${Util.escapeHtml(item.title)}</h2>
           <div class="tags">${tags}</div>
+        </a>
+        <div class="row-side">
+          <div class="meta">
+            <span>${Util.formatListDate(item.createdAt)}</span>
+            <span class="dot">·</span>
+            <span>阅读 ${Util.formatReads(item.reads)}</span>
+            <span class="dot">·</span>
+            <span class="likes"><svg class="icon"><use href="#i-heart"/></svg>${item.likes || 0}</span>
+          </div>
+          <a class="edit-link" href="${editUrl}" aria-label="编辑：${Util.escapeHtml(item.title)}">
+            <svg class="icon"><use href="#i-pen"/></svg>编辑
+          </a>
         </div>
-        <div class="meta">
-          <span>${item.date}</span>
-          <span class="dot">·</span>
-          <span>阅读 ${formatReads(item.reads)}</span>
-          <span class="dot">·</span>
-          <span class="likes"><svg class="icon"><use href="#i-heart"/></svg>${item.likes}</span>
-        </div>
-      </a>`;
+      </article>`;
   }
 
   function pageNumbers(current, total) {
@@ -227,6 +136,15 @@
     pagerEl.innerHTML = items.join('');
   }
 
+  function setEmpty(kind, title, hint, buttonText) {
+    emptyEl.hidden = false;
+    listEl.hidden = true;
+    emptyTitle.textContent = title;
+    emptyHint.textContent = hint;
+    emptyBtn.textContent = buttonText;
+    emptyBtn.dataset.mode = kind;
+  }
+
   function render() {
     const items = filtered();
     const total = items.length;
@@ -238,23 +156,147 @@
 
     titleEl.textContent = SORT_LABEL[state.sort];
     totalEl.textContent = `共 ${total} 篇`;
+
+    if (!articles.length) {
+      setEmpty('blank', '还没有文章', '写下第一篇，记录此刻的想法', '写第一篇文章');
+      pagerEl.innerHTML = '';
+      rangeEl.textContent = '显示 0-0 篇，共 0 篇';
+      return;
+    }
+
+    if (!total) {
+      setEmpty('filter', '没有找到相关文章', '换个关键词，或者切回“全部文章”看看', '重置筛选');
+      pagerEl.innerHTML = '';
+      rangeEl.textContent = '显示 0-0 篇，共 0 篇';
+      return;
+    }
+
+    emptyEl.hidden = true;
+    listEl.hidden = false;
     listEl.innerHTML = pageItems.map((item, i) => rowTemplate(item, startIndex + i + 1)).join('');
+    rangeEl.textContent = `显示 ${startIndex + 1}-${startIndex + pageItems.length} 篇，共 ${total} 篇`;
+    paintPager(totalPages);
+  }
 
-    const showEmpty = total === 0;
-    emptyEl.hidden = !showEmpty;
-    listEl.hidden = showEmpty;
+  async function loadArticles() {
+    try {
+      await window.BlogDB.ready();
+      articles = await window.BlogDB.list();
+      paintCounts();
+      render();
+    } catch (error) {
+      setEmpty('error', '读取文章失败', error.message || '请刷新页面重试', '重新加载');
+      totalEl.textContent = '共 0 篇';
+      pagerEl.innerHTML = '';
+      rangeEl.textContent = '显示 0-0 篇，共 0 篇';
+    }
+  }
 
-    rangeEl.textContent = total
-      ? `显示 ${startIndex + 1}-${startIndex + pageItems.length} 篇，共 ${total} 篇`
-      : '显示 0-0 篇，共 0 篇';
+  /* ---------------- 备份与恢复 ---------------- */
+  async function refreshBackupStats() {
+    if (!backupStats) return;
+    backupStats.textContent = '正在统计…';
+    try {
+      await window.BlogDB.ready();
+      const [items, imageCount] = await Promise.all([
+        window.BlogDB.list(),
+        window.BlogDB.countImages()
+      ]);
+      backupStats.textContent = `当前 ${items.length} 篇文章 · ${imageCount} 张本地图片`;
+    } catch (error) {
+      backupStats.textContent = '暂时无法统计';
+    }
+  }
 
-    paintPager(showEmpty ? 1 : totalPages);
+  function openBackup() {
+    backupModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    refreshBackupStats();
+    backupModal.querySelector('.modal-close')?.focus();
+  }
+
+  function closeBackup() {
+    backupModal.hidden = true;
+    document.body.style.overflow = '';
+    backupBtn.focus();
+  }
+
+  function backupFileName() {
+    const now = new Date();
+    const day = `${now.getFullYear()}${Util.pad2(now.getMonth() + 1)}${Util.pad2(now.getDate())}`;
+    const time = `${Util.pad2(now.getHours())}${Util.pad2(now.getMinutes())}`;
+    return `zjian-backup-${day}-${time}.json`;
+  }
+
+  async function downloadBackup() {
+    if (exportBackupBtn.disabled) return;
+    exportBackupBtn.disabled = true;
+    exportBackupText.textContent = '正在打包…';
+
+    try {
+      await window.BlogDB.ready();
+      const data = await window.BlogDB.exportBackup();
+      if (!data.articles.length && !data.images.length) {
+        toast('还没有可以备份的文章或图片');
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = backupFileName();
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      toast(`已导出 ${data.articles.length} 篇文章、${data.images.length} 张图片`);
+      refreshBackupStats();
+    } catch (error) {
+      toast(error.message || '备份导出失败');
+    } finally {
+      exportBackupBtn.disabled = false;
+      exportBackupText.textContent = '下载备份';
+    }
+  }
+
+  async function importBackupFile(file) {
+    if (!file) return;
+    backupFileLabel.classList.add('is-busy');
+    backupFileText.textContent = '正在导入…';
+
+    try {
+      let data = null;
+      try {
+        data = JSON.parse(await file.text());
+      } catch (error) {
+        throw new Error('文件不是有效的 JSON 备份');
+      }
+      if (!data || !Array.isArray(data.articles)) {
+        throw new Error('这个文件不是字间博客的备份');
+      }
+
+      const mode = document.querySelector('input[name="importMode"]:checked')?.value || 'merge';
+      if (mode === 'replace' && !window.confirm('覆盖恢复会清空当前所有文章和本地图片，且无法撤销。确定继续吗？')) {
+        return;
+      }
+
+      await window.BlogDB.ready();
+      const result = await window.BlogDB.importBackup(data, mode);
+      const skipped = result.skipped ? `，跳过 ${result.skipped} 篇同 ID 文章` : '';
+      toast(`导入完成：${result.imported} 篇文章、${result.images} 张图片${skipped}`);
+      closeBackup();
+      await loadArticles();
+    } catch (error) {
+      toast(error.message || '导入失败，请检查备份文件');
+    } finally {
+      backupFileLabel.classList.remove('is-busy');
+      backupFileText.textContent = '选择备份文件';
+      importFile.value = '';
+    }
   }
 
   /* ---------------- 事件 ---------------- */
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+      document.querySelectorAll('.tab').forEach((item) => item.classList.toggle('is-active', item === tab));
       state.cat = tab.dataset.cat;
       state.page = 1;
       render();
@@ -289,16 +331,41 @@
     document.querySelector('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  $('#resetFilter').addEventListener('click', () => {
+  emptyBtn.addEventListener('click', () => {
+    const mode = emptyBtn.dataset.mode;
+    if (mode === 'blank') {
+      window.location.href = 'edit.html';
+      return;
+    }
+    if (mode === 'error') {
+      window.location.reload();
+      return;
+    }
+
     state.cat = 'all';
     state.q = '';
     state.page = 1;
     searchInput.value = '';
-    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.cat === 'all'));
+    document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === 'all'));
     render();
     searchInput.focus();
   });
 
+  backupBtn.addEventListener('click', openBackup);
+  exportBackupBtn.addEventListener('click', downloadBackup);
+  importFile.addEventListener('change', () => importBackupFile(importFile.files[0]));
+  backupModal.querySelectorAll('[data-close-backup]').forEach((element) => {
+    element.addEventListener('click', closeBackup);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !backupModal.hidden) closeBackup();
+  });
+
+  /* ---------------- 初始化 ---------------- */
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('deleted') === '1') toast('文章已删除');
+  if (params.get('saved') === '1') toast('文章已保存');
+
   paintCounts();
-  render();
+  loadArticles();
 })();
