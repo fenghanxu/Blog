@@ -20,6 +20,7 @@
   <symbol id="i-list" viewBox="0 0 16 16"><path d="M6 4h8M6 8h8M6 12h8"/><path d="M2.6 4h.01M2.6 8h.01M2.6 12h.01" stroke-width="2.2"/></symbol>
   <symbol id="i-code" viewBox="0 0 16 16"><path d="M6.2 4 2.6 8l3.6 4M9.8 4 13.4 8l-3.6 4"/></symbol>
   <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><circle cx="5.6" cy="6.4" r="1.1"/><path d="M2.6 11.4 6 8.4l2.2 2 1.9-1.6 3.2 2.8"/></symbol>
+  <symbol id="i-video" viewBox="0 0 16 16"><rect x="1.8" y="3.4" width="12.4" height="9.2" rx="2.2"/><path d="M6.6 6.2 9.8 8l-3.2 1.8Z"/></symbol>
   <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.6 9.4a2.6 2.6 0 0 0 3.7 0l1.9-1.9a2.6 2.6 0 0 0-3.7-3.7L7.6 4.7"/><path d="M9.4 6.6a2.6 2.6 0 0 0-3.7 0L3.8 8.5a2.6 2.6 0 0 0 3.7 3.7l.9-.9"/></symbol>
   <symbol id="i-draft" viewBox="0 0 16 16"><path d="M4 2.4h5l3 3v8.2H4z"/><path d="M6.2 7.6h3.6M6.2 10.2h2.4"/></symbol>
   <symbol id="i-history" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6"/><path d="M8 4.9V8l2.2 1.5"/></symbol>
@@ -91,6 +92,7 @@
       <span class="tool-sep"></span>
       <div class="tool-group">
         <button class="tool tool-icon" type="button" data-cmd="image" title="插入图片"><svg class="icon"><use href="#i-image"/></svg></button>
+        <button class="tool tool-icon" type="button" data-cmd="video" title="插入视频（B 站 / MP4 直链）"><svg class="icon"><use href="#i-video"/></svg></button>
         <button class="tool tool-icon" type="button" data-cmd="link" title="插入链接"><svg class="icon"><use href="#i-link"/></svg></button>
         <button class="tool has-caret" type="button" data-menu="menu-insert">更多插入<svg class="icon caret"><use href="#i-caret"/></svg></button>
       </div>
@@ -177,6 +179,7 @@
   <button type="button" data-cmd="table">插入表格</button>
   <button type="button" data-cmd="image">本地上传图片</button>
   <button type="button" data-cmd="image-url">网络图片</button>
+  <button type="button" data-cmd="video">插入视频<span class="menu-key">B 站 / MP4</span></button>
 </div>
 <div class="menu" id="menu-more" role="menu">
   <button type="button" data-cmd="export">导出 Markdown</button>
@@ -190,6 +193,20 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="video-dialog" id="videoDialog" hidden>
+  <div class="video-dialog-mask" data-video-close></div>
+  <form class="video-dialog-card" id="videoForm" role="dialog" aria-modal="true" aria-labelledby="videoDialogTitle">
+    <h3 id="videoDialogTitle">插入视频</h3>
+    <p class="video-dialog-hint">粘贴 B 站视频页链接或 MP4 直链，会自动生成对应的播放器。</p>
+    <input id="videoUrl" class="video-dialog-input" type="text" autocomplete="off" spellcheck="false"
+           placeholder="粘贴 B 站视频页地址，或 https://.../movie.mp4">
+    <p class="video-dialog-error" id="videoError" hidden></p>
+    <div class="video-dialog-foot">
+      <button type="button" class="video-dialog-btn" data-video-close>取消</button>
+      <button type="submit" class="video-dialog-btn is-primary">插入</button>
+    </div>
+  </form>
+</div>
 <input type="file" id="imageFile" accept="image/*" multiple hidden>
 
 <script src="assets/js/shared.js"></script>

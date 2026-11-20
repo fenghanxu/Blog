@@ -52,7 +52,7 @@
       html = `<pre>${Util.escapeHtml(raw)}</pre>`;
     }
 
-    return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
+    return Util.sanitizeHtml(html);
   }
 
   function renderToc(headings) {

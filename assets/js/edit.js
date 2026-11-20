@@ -29,6 +29,10 @@
   const backLink = $('#backLink');
   const publishBtn = $('#publishBtn');
   const imageFile = $('#imageFile');
+  const videoDialog = $('#videoDialog');
+  const videoForm = $('#videoForm');
+  const videoUrlInput = $('#videoUrl');
+  const videoError = $('#videoError');
   const Util = window.BlogUtil;
   const resolveImages = Util.createImageResolver();
 
@@ -74,7 +78,7 @@
       html = `<pre style="white-space:pre-wrap">${escapeHtml(raw)}</pre>`;
     }
 
-    if (window.DOMPurify) html = window.DOMPurify.sanitize(html);
+    html = Util.sanitizeHtml(html);
     preview.innerHTML = html;
     resolveImages(preview).catch(() => {});
 
@@ -263,6 +267,56 @@
     toast(missing ? `Markdown 已导出，${missing} 张图片未找到` : 'Markdown 已导出，本地图片已内嵌');
   }
 
+  /* ---------------- 插入视频 ---------------- */
+  function showVideoError(message) {
+    if (!videoError) return;
+    videoError.textContent = message;
+    videoError.hidden = false;
+    videoUrlInput.focus();
+  }
+
+  function openVideoDialog() {
+    if (!videoDialog) return;
+    const selected = source.value.slice(source.selectionStart, source.selectionEnd).trim();
+    if (videoError) {
+      videoError.hidden = true;
+      videoError.textContent = '';
+    }
+    videoUrlInput.value = /^https?:\/\//i.test(selected) ? selected : '';
+    videoDialog.hidden = false;
+    videoUrlInput.focus();
+    videoUrlInput.select();
+  }
+
+  function closeVideoDialog() {
+    if (videoDialog) videoDialog.hidden = true;
+  }
+
+  function insertVideoFromInput() {
+    const result = Util.parseVideoLink(videoUrlInput.value);
+    if (!result) {
+      showVideoError('没认出这个链接，支持 B 站视频页地址、YouTube 地址或 .mp4 直链');
+      return;
+    }
+    if (result.error) {
+      showVideoError(result.error);
+      return;
+    }
+    closeVideoDialog();
+    insertBlock(result.html);
+    toast(`已插入${result.label}`);
+  }
+
+  if (videoDialog) {
+    videoDialog.addEventListener('click', (event) => {
+      if (event.target.closest('[data-video-close]')) closeVideoDialog();
+    });
+    videoForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      insertVideoFromInput();
+    });
+  }
+
   /* ---------------- 命令 ---------------- */
   const TABLE_SNIPPET = '| 列一 | 列二 | 列三 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |';
 
@@ -284,6 +338,7 @@
       case 'toc': return insertBlock('@[TOC]');
       case 'link': return surround('[', '](https://)', '链接文字');
       case 'image': return imageFile.click();
+      case 'video': return openVideoDialog();
       case 'image-url': {
         const url = window.prompt('图片地址（支持网络图片或相对路径）', 'assets/images/');
         if (!url) return;
@@ -365,7 +420,10 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMenus();
+    if (event.key === 'Escape') {
+      closeMenus();
+      closeVideoDialog();
+    }
   });
 
   $$('[data-cmd]').forEach((button) => {

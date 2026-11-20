@@ -151,6 +151,127 @@
     };
   }
 
+  /* ---------------- 视频嵌入 ---------------- */
+  const EMBED_HOSTS = [
+    'player.bilibili.com',
+    'www.bilibili.com',
+    'm.bilibili.com',
+    'www.youtube.com',
+    'www.youtube-nocookie.com',
+    'player.vimeo.com'
+  ];
+
+  function parseUrl(value, base) {
+    try {
+      return base ? new URL(String(value || ''), base) : new URL(String(value || '').trim());
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function escapeAttr(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function embedFrame(src) {
+    return '<div class="video-embed"><iframe src="' + escapeAttr(src) + '" title="视频播放器" '
+      + 'scrolling="no" frameborder="0" allowfullscreen loading="lazy"></iframe></div>';
+  }
+
+  /**
+   * 把粘贴的链接识别成可写进正文的播放器片段。
+   * 返回 { html, label } / { error } / null
+   */
+  function parseVideoLink(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+
+    const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : 'https://' + text;
+    const url = parseUrl(withScheme);
+    if (!url) return null;
+
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    const path = url.pathname;
+
+    if (host === 'bilibili.com' || host === 'm.bilibili.com') {
+      const bv = /\/video\/(BV[0-9A-Za-z]+)/.exec(path);
+      const av = /\/video\/av(\d+)/i.exec(path);
+      if (!bv && !av) return { error: '这个 B 站链接里没有找到视频号（BV / av）' };
+      const page = Math.max(1, Number(url.searchParams.get('p')) || 1);
+      const key = bv ? 'bvid=' + bv[1] : 'aid=' + av[1];
+      return {
+        label: ' B 站播放器',
+        html: embedFrame('https://player.bilibili.com/player.html?' + key + '&page=' + page + '&high_quality=1&danmaku=1&autoplay=0')
+      };
+    }
+
+    if (host === 'b23.tv') {
+      return { error: 'b23.tv 短链接要先在浏览器打开，复制跳转后的 bilibili.com/video/BV... 地址再插入' };
+    }
+
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') {
+      const shortId = host === 'youtu.be' ? path.slice(1).split('/')[0] : '';
+      const shorts = (/\/shorts\/([^/?#]+)/.exec(path) || [])[1] || '';
+      const id = shortId || url.searchParams.get('v') || shorts;
+      if (!id) return { error: '这个 YouTube 链接里没有找到视频 ID' };
+      const start = Number(url.searchParams.get('t')) || 0;
+      return {
+        label: ' YouTube 播放器',
+        html: embedFrame('https://www.youtube.com/embed/' + encodeURIComponent(id) + '?rel=0' + (start > 0 ? '&start=' + start : ''))
+      };
+    }
+
+    if (host === 'vimeo.com') {
+      const id = (/^\/(\d+)/.exec(path) || [])[1];
+      if (!id) return { error: '这个 Vimeo 链接里没有找到视频 ID' };
+      return { label: ' Vimeo 播放器', html: embedFrame('https://player.vimeo.com/video/' + id) };
+    }
+
+    if (/\.(mp4|webm|ogv|ogg|mov|m4v)($|[?#])/i.test(path + url.search)) {
+      return {
+        label: '视频文件',
+        html: '<video controls preload="metadata" playsinline src="' + escapeAttr(url.href) + '"></video>'
+      };
+    }
+
+    return null;
+  }
+
+  let sanitizeHooksReady = false;
+
+  function ensureSanitizeHooks() {
+    if (sanitizeHooksReady || !window.DOMPurify) return;
+    sanitizeHooksReady = true;
+
+    window.DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+      if (node.tagName !== 'IFRAME') return;
+      const src = parseUrl(node.getAttribute('src'), window.location.href);
+      const host = src ? src.hostname.toLowerCase() : '';
+      if (!src || src.protocol !== 'https:' || !EMBED_HOSTS.includes(host)) {
+        node.remove();
+        return;
+      }
+      node.setAttribute('frameborder', '0');
+      node.setAttribute('scrolling', 'no');
+      node.setAttribute('allowfullscreen', '');
+      node.setAttribute('loading', 'lazy');
+    });
+  }
+
+  /** 统一净化正文 HTML：放行白名单域名的视频 iframe，其余保持默认策略。 */
+  function sanitizeHtml(html) {
+    if (!window.DOMPurify) return html;
+    ensureSanitizeHooks();
+    return window.DOMPurify.sanitize(html, {
+      ADD_TAGS: ['iframe'],
+      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'loading', 'referrerpolicy']
+    });
+  }
+
   function categoryLabel(id) {
     return CATEGORY_LABEL[id] || '未分类';
   }
@@ -170,7 +291,9 @@
     localImageIds,
     pad2,
     parseTags,
+    parseVideoLink,
     queryParam,
+    sanitizeHtml,
     stripMarkdown,
     summarize
   };
