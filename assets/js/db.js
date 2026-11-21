@@ -144,7 +144,7 @@
     await transactionDone(tx);
   }
 
-  async function addImage(file) {
+  async function addImage(file, details = {}) {
     if (!file || typeof file.size !== 'number' || !file.type?.startsWith('image/')) {
       throw new Error('只能上传图片文件');
     }
@@ -154,11 +154,14 @@
 
     const record = {
       id: `img-${Util.createId()}`,
-      name: file.name || 'image',
+      name: details.name || file.name || 'image',
       type: file.type,
       size: file.size,
       blob: file,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      sourceUrl: details.sourceUrl || '',
+      watermarkStatus: details.watermarkStatus || 'original',
+      watermarkMode: details.watermarkMode || ''
     };
     const db = await openDB();
     const tx = db.transaction(IMAGE_STORE, 'readwrite');
@@ -174,6 +177,12 @@
     const image = await requestResult(tx.objectStore(IMAGE_STORE).get(id));
     await transactionDone(tx);
     return image || null;
+  }
+
+  async function findImageBySource(sourceUrl, predicate = null) {
+    if (!sourceUrl) return null;
+    const images = await getAllImages();
+    return images.find((image) => image.sourceUrl === sourceUrl && (!predicate || predicate(image))) || null;
   }
 
   async function getAllImages() {
@@ -375,6 +384,7 @@
     countImages,
     create,
     exportBackup,
+    findImageBySource,
     get,
     getAllImages,
     getImage,

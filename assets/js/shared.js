@@ -151,6 +151,117 @@
     };
   }
 
+  /* ---------------- 网络图片本地化 ---------------- */
+  const REMOTE_IMAGE_PATTERN = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi;
+  const PROXY_HOSTS = new Set([
+    'i-blog.csdnimg.cn',
+    'img-blog.csdnimg.cn',
+    'i.csdn.net',
+    'csdnimg.cn',
+    'img-blog.csdn.net'
+  ]);
+
+  function isRemoteImageUrl(src) {
+    const url = parseUrl(src);
+    return Boolean(url && /^https?:$/.test(url.protocol));
+  }
+
+  /** 找出 Markdown / HTML 里的图片地址，保持首次出现顺序。 */
+  function collectRemoteImages(markdown) {
+    const text = String(markdown || '');
+    const found = [];
+    const seen = new Set();
+    const add = (src, alt = '') => {
+      const clean = String(src || '').replace(/&amp;/g, '&').trim();
+      if (!isRemoteImageUrl(clean) || seen.has(clean)) return;
+      seen.add(clean);
+      found.push({ src: clean, alt: String(alt || '').trim() || '网络图片' });
+    };
+
+    let match;
+    REMOTE_IMAGE_PATTERN.lastIndex = 0;
+    while ((match = REMOTE_IMAGE_PATTERN.exec(text))) add(match[2], match[1]);
+
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    doc.querySelectorAll('img[src]').forEach((img) => add(img.getAttribute('src'), img.getAttribute('alt')));
+    return found;
+  }
+
+  function proxyImageUrl(src) {
+    const url = parseUrl(src);
+    if (!url || !PROXY_HOSTS.has(url.hostname.toLowerCase())) return '';
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url.href)}`;
+  }
+
+  function imageExtension(blobUrl, fallback = 'png') {
+    try {
+      const ext = new URL(blobUrl).pathname.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase();
+      return /^(png|jpe?g|gif|webp|avif|svg)$/.test(ext || '') ? ext : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  async function downloadRemoteImage(src, options = {}) {
+    // 清理和保留原图分开复用缓存，避免旧原图被误当作已清理图片。
+    const existing = await window.BlogDB.findImageBySource(src, (image) => (
+      options.cleanWatermark
+        ? image.watermarkStatus === 'cleaned' && image.watermarkMode === (options.mode || 'fill')
+        : image.watermarkStatus !== 'cleaned'
+    )).catch(() => null);
+    if (existing) return existing;
+
+    const attempts = [{ url: src, mode: 'cors' }];
+    const proxy = proxyImageUrl(src);
+    if (proxy) attempts.push({ url: proxy, mode: 'cors' });
+
+    let lastError = null;
+    for (const attempt of attempts) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+      try {
+        const response = await fetch(attempt.url, {
+          mode: attempt.mode,
+          credentials: 'omit',
+          redirect: 'follow',
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`图片服务器返回 ${response.status}`);
+        const blob = await response.blob();
+        if (!blob.size) throw new Error('图片文件为空');
+        if (blob.size > 10 * 1024 * 1024) throw new Error('图片超过 10MB，无法保存到本地');
+        if (blob.type && !blob.type.startsWith('image/')) throw new Error('返回内容不是图片');
+
+        const finalType = blob.type || `image/${imageExtension(src)}`;
+        const ext = imageExtension(src, finalType.split('/')[1] || 'png');
+        const name = `csdn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        let processed = blob;
+        if (options.cleanWatermark && window.BlogWatermark) {
+          processed = await window.BlogWatermark.process(blob, options);
+        }
+        const record = await window.BlogDB.addImage(new File([processed], name, { type: processed.type || finalType }), {
+          name,
+          sourceUrl: src,
+          watermarkStatus: options.cleanWatermark ? 'cleaned' : 'original',
+          watermarkMode: options.cleanWatermark ? (options.mode || 'fill') : ''
+        });
+        return record;
+      } catch (error) {
+        lastError = error;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    throw new Error(lastError?.name === 'AbortError' ? '下载超时' : (lastError?.message || '下载失败'));
+  }
+
+  const remoteImageTool = {
+    collectRemoteImages,
+    downloadRemoteImage,
+    previewUrl: (src) => proxyImageUrl(src) || src
+  };
+
   /* ---------------- 视频嵌入 ---------------- */
   const EMBED_HOSTS = [
     'player.bilibili.com',
@@ -293,6 +404,7 @@
     parseTags,
     parseVideoLink,
     queryParam,
+    remoteImageTool,
     sanitizeHtml,
     stripMarkdown,
     summarize
