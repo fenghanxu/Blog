@@ -22,6 +22,8 @@
   <symbol id="i-download" viewBox="0 0 16 16"><path d="M8 2.8v7.1M5.2 7.3 8 10.1l2.8-2.8M3.2 12.8h9.6"/></symbol>
   <symbol id="i-upload" viewBox="0 0 16 16"><path d="M8 10.3V3.2M5.2 6 8 3.2 10.8 6M3.2 12.8h9.6"/></symbol>
   <symbol id="i-close" viewBox="0 0 16 16"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></symbol>
+  <symbol id="i-tags" viewBox="0 0 16 16"><path d="M2.5 3.6c0-.6.5-1.1 1.1-1.1h3.2v4.2L3.5 10 2.5 9V3.6ZM9.2 3.6c0-.6.5-1.1 1.1-1.1h2.5c.6 0 1.1.5 1.1 1.1v2.5L8.2 12 5.6 9.4l3.6-5.8Z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="m3.4 8.2 3 3 6.2-6.4"/></symbol>
 </svg>
 
 <header class="topbar">
@@ -29,15 +31,13 @@
 
   <nav class="tabs" id="tabs" aria-label="文章分类">
     <button class="tab is-active" type="button" data-cat="all">全部文章<span class="tab-count" data-count="all">00</span></button>
-    <button class="tab" type="button" data-cat="frontend">前端开发<span class="tab-count" data-count="frontend">00</span></button>
-    <button class="tab" type="button" data-cat="backend">后端架构<span class="tab-count" data-count="backend">00</span></button>
-    <button class="tab" type="button" data-cat="ai">AI 与工具<span class="tab-count" data-count="ai">00</span></button>
-    <button class="tab" type="button" data-cat="engineering">工程效率<span class="tab-count" data-count="engineering">00</span></button>
-    <button class="tab" type="button" data-cat="essay">随笔<span class="tab-count" data-count="essay">00</span></button>
     <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
   </nav>
 
   <div class="tools">
+    <button class="backup-btn category-manage-btn" id="categoryManageBtn" type="button" title="管理分类" aria-label="管理分类">
+      <svg class="icon"><use href="#i-tags"/></svg><span>分类编辑</span>
+    </button>
     <button class="backup-btn" id="backupBtn" type="button" title="备份与恢复" aria-label="备份与恢复">
       <svg class="icon"><use href="#i-archive"/></svg><span>备份</span>
     </button>
@@ -89,6 +89,42 @@
     </footer>
   </section>
 </main>
+
+<div class="modal" id="categoryModal" hidden>
+  <div class="modal-backdrop" data-close-category></div>
+  <section class="modal-card category-card" role="dialog" aria-modal="true" aria-labelledby="categoryTitle">
+    <header class="modal-head">
+      <div>
+        <h2 id="categoryTitle">分类编辑</h2>
+        <p>新增、重命名或删除分类，文章列表与发布弹窗会同步更新。</p>
+      </div>
+      <button class="modal-close" type="button" data-close-category aria-label="关闭分类编辑">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </header>
+    <div class="category-body">
+      <form class="category-add" id="categoryForm">
+        <label class="category-input-wrap" for="categoryInput">
+          <span class="category-input-icon"><svg class="icon"><use href="#i-tags"/></svg></span>
+          <input id="categoryInput" type="text" maxlength="16" placeholder="输入分类名称，如：Vue" autocomplete="off">
+        </label>
+        <button class="category-add-btn" id="categoryAddBtn" type="submit">
+          <svg class="icon"><use href="#i-plus"/></svg><span>添加分类</span>
+        </button>
+      </form>
+      <p class="category-error" id="categoryError" role="alert" hidden></p>
+      <div class="category-list-head">
+        <span>当前分类</span>
+        <span id="categoryTotal">共 0 个</span>
+      </div>
+      <div class="category-list" id="categoryList" aria-live="polite"></div>
+      <p class="category-note">点击分类名称可重命名；有文章使用的分类暂不能删除。</p>
+    </div>
+    <footer class="category-foot">
+      <button class="category-done-btn" type="button" data-close-category>完成</button>
+    </footer>
+  </section>
+</div>
 
 <div class="modal" id="backupModal" hidden>
   <div class="modal-backdrop" data-close-backup></div>

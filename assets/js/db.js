@@ -67,6 +67,8 @@
   }
 
   const validCats = new Set(Util.CATEGORIES.map((item) => item.id));
+  // 旧分类继续保留读取兼容，已有文章不会因分类列表更新而报错。
+  const LEGACY_CATS = new Set(['frontend', 'backend', 'ai', 'engineering', 'essay']);
 
   function normalize(input = {}, existing = null) {
     const now = new Date().toISOString();
@@ -79,7 +81,7 @@
       title: String(input.title ?? existing?.title ?? '').trim() || '【无标题】',
       summary: summary || Util.summarize(body),
       body,
-      cat: validCats.has(cat) ? cat : (existing?.cat || 'essay'),
+      cat: validCats.has(cat) ? cat : (LEGACY_CATS.has(cat) ? cat : (existing?.cat || Util.CATEGORIES[0].id)),
       tags: Util.parseTags(input.tags ?? existing?.tags ?? []),
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: input.updatedAt || now,

@@ -5,18 +5,123 @@
 (() => {
   'use strict';
 
-  const CATEGORIES = [
-    { id: 'frontend', label: '前端开发' },
-    { id: 'backend', label: '后端架构' },
-    { id: 'ai', label: 'AI 与工具' },
-    { id: 'engineering', label: '工程效率' },
-    { id: 'essay', label: '随笔' }
+  const DEFAULT_CATEGORIES = [
+    { id: 'ios', label: 'iOS' },
+    { id: 'oc', label: 'OC' },
+    { id: 'swift', label: 'Swift' },
+    { id: 'swiftui', label: 'SwiftUI' },
+    { id: 'android', label: '安卓' },
+    { id: 'flutter', label: 'flutter' },
+    { id: 'uniapp', label: 'UniApp' },
+    { id: 'java', label: 'Java' },
+    { id: 'html', label: 'Html' },
+    { id: 'kotlin', label: 'Kotlin' },
+    { id: 'miniprogram', label: '小程序' }
   ];
 
-  const CATEGORY_LABEL = CATEGORIES.reduce((map, item) => {
-    map[item.id] = item.label;
-    return map;
-  }, {});
+  const CATEGORY_STORAGE_KEY = 'zjian.categories';
+  const CATEGORY_LIMIT = 30;
+  const CATEGORIES = [];
+  const CATEGORY_LABEL = {};
+  const LEGACY_CATEGORY_LABEL = { frontend: '前端开发', backend: '后端架构', ai: 'AI 与工具', engineering: '工程效率', essay: '随笔' };
+
+  function cleanCategoryLabel(value) {
+    return Array.from(String(value || '').replace(/\s+/g, ' ').trim()).slice(0, 16).join('');
+  }
+
+  function normalizeCategories(list) {
+    const rows = [];
+    const ids = new Set();
+    const labels = new Set();
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const label = cleanCategoryLabel(item?.label);
+      const key = label.toLowerCase();
+      let id = typeof item?.id === 'string' ? item.id.trim() : '';
+      if (!label || labels.has(key) || rows.length >= CATEGORY_LIMIT) return;
+      if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || ids.has(id)) id = `cat-${createId()}`;
+      ids.add(id);
+      labels.add(key);
+      rows.push({ id, label });
+    });
+    return rows;
+  }
+
+  function rebuildCategoryLabels() {
+    Object.keys(CATEGORY_LABEL).forEach((key) => delete CATEGORY_LABEL[key]);
+    CATEGORIES.forEach((item) => { CATEGORY_LABEL[item.id] = item.label; });
+  }
+
+  function persistCategories() {
+    try {
+      localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(CATEGORIES));
+    } catch (error) {
+      throw new Error('浏览器禁用了本地存储，分类无法保存');
+    }
+  }
+
+  function applyCategories(list, persist = false) {
+    const rows = normalizeCategories(list);
+    if (!rows.length) throw new Error('至少需要保留一个分类');
+    CATEGORIES.splice(0, CATEGORIES.length, ...rows);
+    rebuildCategoryLabels();
+    if (persist) persistCategories();
+    return getCategories();
+  }
+
+  function loadCategories() {
+    let stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(CATEGORY_STORAGE_KEY) || 'null');
+    } catch (error) {
+      stored = null;
+    }
+    const rows = normalizeCategories(stored);
+    CATEGORIES.splice(0, CATEGORIES.length, ...(rows.length ? rows : DEFAULT_CATEGORIES));
+    rebuildCategoryLabels();
+  }
+
+  function getCategories() {
+    return CATEGORIES.map((item) => ({ ...item }));
+  }
+
+  function addCategory(value) {
+    const label = cleanCategoryLabel(value);
+    if (!label) throw new Error('请输入分类名称');
+    if (CATEGORIES.some((item) => item.label.toLowerCase() === label.toLowerCase())) {
+      throw new Error('这个分类已经存在');
+    }
+    if (CATEGORIES.length >= CATEGORY_LIMIT) throw new Error(`最多只能创建 ${CATEGORY_LIMIT} 个分类`);
+    const id = `cat-${createId()}`;
+    CATEGORIES.push({ id, label });
+    persistCategories();
+    rebuildCategoryLabels();
+    return { id, label };
+  }
+
+  function renameCategory(id, value) {
+    const current = CATEGORIES.find((item) => item.id === id);
+    if (!current) throw new Error('分类不存在或已被删除');
+    const label = cleanCategoryLabel(value);
+    if (!label) throw new Error('请输入分类名称');
+    if (CATEGORIES.some((item) => item.id !== id && item.label.toLowerCase() === label.toLowerCase())) {
+      throw new Error('这个分类已经存在');
+    }
+    current.label = label;
+    persistCategories();
+    rebuildCategoryLabels();
+    return { ...current };
+  }
+
+  function deleteCategory(id) {
+    if (CATEGORIES.length <= 1) throw new Error('至少需要保留一个分类');
+    const index = CATEGORIES.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('分类不存在或已被删除');
+    CATEGORIES.splice(index, 1);
+    persistCategories();
+    rebuildCategoryLabels();
+  }
+
+  loadCategories();
 
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -384,26 +489,31 @@
   }
 
   function categoryLabel(id) {
-    return CATEGORY_LABEL[id] || '未分类';
+    return CATEGORY_LABEL[id] || LEGACY_CATEGORY_LABEL[id] || '未分类';
   }
 
   window.BlogUtil = {
     CATEGORIES,
     CATEGORY_LABEL,
+    addCategory,
+    applyCategories,
     categoryLabel,
     blobToDataUrl,
     createId,
     createImageResolver,
+    deleteCategory,
     escapeHtml,
     formatDate,
     formatListDate,
     formatReads,
+    getCategories,
     localImageId,
     localImageIds,
     pad2,
     parseTags,
     parseVideoLink,
     queryParam,
+    renameCategory,
     remoteImageTool,
     sanitizeHtml,
     stripMarkdown,

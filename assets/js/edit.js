@@ -24,6 +24,7 @@
   const tagsInput = $('#tagsInput');
   const summaryInput = $('#summaryInput');
   const summaryCount = $('#summaryCount');
+  const backLink = $('#backLink');
   const publishBtn = $('#publishBtn');
   const publishDialog = $('#publishDialog');
   const publishForm = $('#publishForm');
@@ -1078,7 +1079,7 @@
     if (!draft) return;
     titleInput.value = draft.title || '';
     source.value = draft.body || '';
-    categorySelect.value = draft.cat || 'essay';
+    setCategoryValue(draft.cat);
     tagsInput.value = Array.isArray(draft.tags) ? draft.tags.join(', ') : (draft.tags || '');
     summaryInput.value = draft.summary || '';
     updateSummaryCount();
@@ -1090,15 +1091,27 @@
   }
 
   function populateCategories() {
-    categorySelect.innerHTML = Util.CATEGORIES
+    categorySelect.innerHTML = Util.getCategories()
       .map((item) => `<option value="${item.id}">${Util.escapeHtml(item.label)}</option>`)
       .join('');
+  }
+
+  function setCategoryValue(cat) {
+    const categories = Util.getCategories();
+    const id = cat || categories[0]?.id || '';
+    if (!categorySelect.querySelector(`option[value="${id}"]`)) {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = categories.some((item) => item.id === id) ? Util.categoryLabel(id) : `${Util.categoryLabel(id)}（旧分类）`;
+      categorySelect.append(option);
+    }
+    categorySelect.value = id;
   }
 
   function fillForm(article) {
     titleInput.value = article.title || '';
     source.value = article.body || '';
-    categorySelect.value = article.cat || 'essay';
+    setCategoryValue(article.cat);
     tagsInput.value = (article.tags || []).join(', ');
     summaryInput.value = article.summary || '';
     updateSummaryCount();
@@ -1112,7 +1125,7 @@
 
   async function loadPage() {
     populateCategories();
-    categorySelect.value = 'essay';
+    categorySelect.value = Util.getCategories()[0]?.id || '';
     updateSummaryCount();
 
     if (articleId) {
@@ -1128,6 +1141,11 @@
       fillForm(currentArticle);
       document.title = `编辑：${currentArticle.title} · 字间`;
       setPublishLabel('保存修改');
+      if (backLink) {
+        backLink.href = `detail.html?id=${encodeURIComponent(articleId)}`;
+        backLink.querySelector('span').textContent = '返回文章';
+        backLink.title = '返回文章详情';
+      }
     } else {
       if (articleId) {
         toast('文章不存在，已切换到新建模式');
@@ -1137,6 +1155,11 @@
       }
       document.title = '写文章 · 字间';
       setPublishLabel('发布文章');
+      if (backLink) {
+        backLink.href = 'index.html';
+        backLink.querySelector('span').textContent = '返回列表';
+        backLink.title = '返回文章列表';
+      }
     }
 
     const draft = readDraft();

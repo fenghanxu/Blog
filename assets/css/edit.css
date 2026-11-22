@@ -74,6 +74,16 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
   -webkit-backdrop-filter:blur(12px);
 }
 .title-wrap{position:relative;flex:1 1 280px;min-width:0}
+.back{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  height:38px;padding:0 13px 0 10px;
+  border:1px solid var(--line-strong);border-radius:10px;
+  background:#fff;color:#5f4f86;
+  font-size:13px;text-decoration:none;white-space:nowrap;
+  transition:background .15s,border-color .15s,color .15s,box-shadow .15s;
+}
+.back:hover{background:var(--purple-soft);border-color:#d6c6f5;color:var(--purple-strong);box-shadow:0 4px 12px rgba(124,58,237,.1)}
+.back .icon{width:15px;height:15px}
 .title-icon{
   position:absolute;left:8px;top:50%;transform:translateY(-50%);
   width:28px;height:28px;border-radius:9px;
@@ -489,6 +499,7 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
 .publish-dialog-hint{margin:3px 0 0;font-size:12px;color:var(--muted)}
 .publish-fields{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px 16px}
 .publish-fields .meta-field select,.publish-fields .meta-field input{height:40px}
+.publish-fields .meta-field select{padding-right:34px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4.8 6.4 3.2 3.2 3.2-3.2' fill='none' stroke='%238f88a0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
 .publish-fields .meta-field textarea{min-height:129px;font-size:13px;line-height:1.7}
 .publish-dialog-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
 .publish-dialog-btn{
@@ -627,6 +638,8 @@ body.is-dialog-open{overflow:hidden}
 }
 @media (max-width:720px){
   .topbar{height:58px;margin:10px 10px 0;padding:0 10px;gap:8px;border-radius:16px}
+  .back{height:38px;padding:0 9px;gap:0}
+  .back span{display:none}
   .title-icon{display:none}
   .title-input{font-size:15px;height:40px;padding:0 62px 0 14px}
   .toc-toggle{height:40px;padding:0 11px;gap:5px;font-size:12px}
@@ -657,7 +670,7 @@ body.is-dialog-open{overflow:hidden}
   .import-dialog-foot{flex-wrap:wrap}
 }
 @media (max-width:560px){
-  .title-wrap{flex:0 1 72px;min-width:72px}
+  .title-wrap{flex:1 1 150px;min-width:110px}
   .topbar-actions{gap:8px}
   .mode-tabs{gap:8px}
   .mode{padding:0 8px}

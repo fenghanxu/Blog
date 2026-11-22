@@ -9,6 +9,7 @@
 
   const Util = window.BlogUtil;
   const SORT_LABEL = { latest: '最新发布', reads: '最多阅读', likes: '最多点赞' };
+  const LEGACY_CATEGORY_IDS = new Set(['frontend', 'backend', 'ai', 'engineering', 'essay']);
   const PER_PAGE = 6;
 
   const state = { cat: 'all', q: '', sort: 'latest', page: 1 };
@@ -40,6 +41,14 @@
   const deleteModal = $('#deleteModal');
   const deleteArticleName = $('#deleteArticleName');
   const confirmDeleteBtn = $('#confirmDeleteBtn');
+  const categoryManageBtn = $('#categoryManageBtn');
+  const categoryModal = $('#categoryModal');
+  const categoryForm = $('#categoryForm');
+  const categoryInput = $('#categoryInput');
+  const categoryList = $('#categoryList');
+  const categoryTotal = $('#categoryTotal');
+  const categoryError = $('#categoryError');
+  const categoryAddBtn = $('#categoryAddBtn');
 
   let toastTimer = 0;
   let pendingDeleteId = null;
@@ -59,11 +68,70 @@
     }, { all: articles.length });
   }
 
+  function renderCategories() {
+    const map = counts();
+    tabsEl.querySelectorAll('.tab[data-cat]:not([data-cat="all"])').forEach((tab) => tab.remove());
+    const indicator = tabsEl.querySelector('.tab-indicator');
+    const categories = Util.getCategories();
+    categories.forEach((category) => {
+      const tab = document.createElement('button');
+      tab.className = 'tab';
+      tab.type = 'button';
+      tab.dataset.cat = category.id;
+      tab.innerHTML = `${Util.escapeHtml(category.label)}<span class="tab-count" data-count="${Util.escapeHtml(category.id)}">${Util.pad2(map[category.id] || 0)}</span>`;
+      tab.addEventListener('click', () => selectCategory(tab));
+      tabsEl.insertBefore(tab, indicator);
+    });
+    if (state.cat !== 'all' && !categories.some((item) => item.id === state.cat) && !articles.some((item) => item.cat === state.cat)) {
+      state.cat = 'all';
+    }
+    tabsEl.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === state.cat));
+    paintCounts();
+    syncTabIndicator(false);
+  }
+
   function paintCounts() {
     const map = counts();
     document.querySelectorAll('.tab-count').forEach((el) => {
-      el.textContent = Util.pad2(map[el.dataset.count] || 0);
+      const id = el.dataset.count;
+      el.textContent = Util.pad2(map[id] || 0);
     });
+  }
+
+  function selectCategory(tab) {
+    tabsEl.querySelectorAll('.tab').forEach((item) => item.classList.toggle('is-active', item === tab));
+    state.cat = tab.dataset.cat;
+    state.page = 1;
+    render();
+    syncTabIndicator();
+  }
+
+  function paintUnmanagedTabs() {
+    const categories = new Set(Util.getCategories().map((item) => item.id));
+    const legacy = new Map();
+    articles.forEach((item) => {
+      if (categories.has(item.cat) || LEGACY_CATEGORY_IDS.has(item.cat)) return;
+      legacy.set(item.cat, (legacy.get(item.cat) || 0) + 1);
+    });
+    tabsEl.querySelectorAll('.tab[data-legacy="1"]').forEach((tab) => tab.remove());
+    const indicator = tabsEl.querySelector('.tab-indicator');
+    legacy.forEach((count, id) => {
+      const tab = document.createElement('button');
+      tab.className = 'tab';
+      tab.type = 'button';
+      tab.dataset.cat = id;
+      tab.dataset.legacy = '1';
+      tab.title = '旧分类';
+      tab.innerHTML = `${Util.escapeHtml(Util.categoryLabel(id))}<span class="tab-count" data-count="${Util.escapeHtml(id)}">${Util.pad2(count)}</span>`;
+      tab.addEventListener('click', () => selectCategory(tab));
+      tabsEl.insertBefore(tab, indicator);
+    });
+  }
+
+  function syncAllCategories() {
+    paintUnmanagedTabs();
+    renderCategories();
+    paintCounts();
   }
 
   function syncTabIndicator(animate = true) {
@@ -209,6 +277,8 @@
     try {
       await window.BlogDB.ready();
       articles = await window.BlogDB.list();
+      renderCategories();
+      paintUnmanagedTabs();
       paintCounts();
       render();
     } catch (error) {
@@ -217,6 +287,144 @@
       pagerEl.innerHTML = '';
       rangeEl.textContent = '显示 0-0 篇，共 0 篇';
     }
+  }
+
+  /* ---------------- 分类编辑 ---------------- */
+  function showCategoryError(message = '') {
+    categoryError.textContent = message;
+    categoryError.hidden = !message;
+  }
+
+  function categoryUsage() {
+    return articles.reduce((map, item) => {
+      map[item.cat] = (map[item.cat] || 0) + 1;
+      return map;
+    }, {});
+  }
+
+  function renderCategoryManager() {
+    const categories = Util.getCategories();
+    const usage = categoryUsage();
+    categoryList.innerHTML = categories.map((category) => {
+      const used = usage[category.id] || 0;
+      const title = used ? `这个分类下还有 ${used} 篇文章，暂不能删除` : '删除分类';
+      return `
+        <div class="category-tile${used ? ' is-used' : ''}" data-category-id="${Util.escapeHtml(category.id)}" title="${used ? `有 ${used} 篇文章使用` : '暂无文章使用'}">
+          <button class="category-name" type="button" data-rename-category="${Util.escapeHtml(category.id)}" title="点击文字可重命名分类">
+            <span>${Util.escapeHtml(category.label)}</span>
+            <svg class="icon category-edit-icon" aria-hidden="true"><use href="#i-pen"/></svg>
+          </button>
+          <button class="category-tile-close" type="button" data-delete-category="${Util.escapeHtml(category.id)}" title="${title}" aria-label="删除分类：${Util.escapeHtml(category.label)}" ${used || categories.length <= 1 ? 'disabled' : ''}>
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </div>`;
+    }).join('');
+    categoryTotal.textContent = `共 ${categories.length} 个`;
+  }
+
+  function openCategoryModal() {
+    showCategoryError();
+    renderCategoryManager();
+    categoryModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    categoryModal.querySelector('.modal-close')?.focus();
+  }
+
+  function closeCategoryModal() {
+    categoryModal.hidden = true;
+    document.body.style.overflow = '';
+    categoryManageBtn.focus();
+  }
+
+  function syncCategoryViews() {
+    renderCategoryManager();
+    syncAllCategories();
+    render();
+  }
+
+  function updateCategoryAddState() {
+    const disabled = !categoryInput.value.trim();
+    categoryAddBtn.disabled = disabled;
+    categoryAddBtn.setAttribute('aria-disabled', String(disabled));
+  }
+
+  function detectCategoryChange(event) {
+    if (event.key === 'zjian.categories' && event.newValue !== event.oldValue) {
+      syncCategoryViews();
+    }
+  }
+
+  function loadCategoriesFromStorage() {
+    try {
+      const stored = JSON.parse(localStorage.getItem('zjian.categories') || 'null');
+      if (Array.isArray(stored) && stored.length) {
+        Util.applyCategories(stored);
+      }
+    } catch (error) {
+      // 本地分类数据损坏时保留当前内存中的分类。
+    }
+    if (!categoryModal.hidden) syncCategoryViews();
+    else {
+      syncAllCategories();
+      render();
+    }
+  }
+
+  function startCategoryRename(id) {
+    const tile = categoryList.querySelector(`[data-category-id="${CSS.escape(id)}"]`);
+    const category = Util.getCategories().find((item) => item.id === id);
+    if (!tile || !category || tile.classList.contains('is-editing')) return;
+
+    const nameButton = tile.querySelector('.category-name');
+    const closeButton = tile.querySelector('.category-tile-close');
+    const input = document.createElement('input');
+    input.className = 'category-rename-input';
+    input.type = 'text';
+    input.maxLength = 16;
+    input.value = category.label;
+    input.setAttribute('aria-label', '新的分类名称');
+    tile.classList.add('is-editing');
+    tile.insertBefore(input, nameButton);
+    nameButton.hidden = true;
+    if (closeButton) closeButton.hidden = true;
+
+    let finished = false;
+    const finish = (save) => {
+      if (finished) return;
+      finished = true;
+      if (!save) {
+        input.remove();
+        nameButton.hidden = false;
+        if (closeButton) closeButton.hidden = false;
+        tile.classList.remove('is-editing');
+        return;
+      }
+      try {
+        Util.renameCategory(id, input.value);
+        showCategoryError();
+        syncCategoryViews();
+        toast('分类名称已更新');
+      } catch (error) {
+        finished = false;
+        showCategoryError(error.message);
+        input.focus();
+        input.select();
+      }
+    };
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        finish(false);
+      }
+    });
+    input.addEventListener('blur', () => finish(false));
+    input.focus();
+    input.select();
   }
 
   /* ---------------- 备份与恢复 ---------------- */
@@ -386,15 +594,54 @@
     openDelete(deleteButton.dataset.deleteId, deleteButton);
   });
 
-  document.querySelectorAll('.tab').forEach((tab) => {
+  tabsEl.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((item) => item.classList.toggle('is-active', item === tab));
-      syncTabIndicator();
-      state.cat = tab.dataset.cat;
-      state.page = 1;
-      render();
+      selectCategory(tab);
     });
   });
+
+  categoryManageBtn.addEventListener('click', openCategoryModal);
+  categoryForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    try {
+      const category = Util.addCategory(categoryInput.value);
+      categoryInput.value = '';
+      updateCategoryAddState();
+      showCategoryError();
+      syncCategoryViews();
+      toast(`已添加分类「${category.label}」`);
+      categoryInput.focus();
+    } catch (error) {
+      showCategoryError(error.message);
+      categoryInput.focus();
+    }
+  });
+  categoryInput.addEventListener('input', () => {
+    showCategoryError();
+    updateCategoryAddState();
+  });
+  categoryList.addEventListener('click', (event) => {
+    const renameButton = event.target.closest('[data-rename-category]');
+    if (renameButton) {
+      startCategoryRename(renameButton.dataset.renameCategory);
+      return;
+    }
+    const button = event.target.closest('[data-delete-category]');
+    if (!button) return;
+    const category = Util.getCategories().find((item) => item.id === button.dataset.deleteCategory);
+    if (!category) return;
+    try {
+      Util.deleteCategory(category.id);
+      syncCategoryViews();
+      toast(`已删除分类「${category.label}」`);
+    } catch (error) {
+      showCategoryError(error.message);
+    }
+  });
+  categoryModal.querySelectorAll('[data-close-category]').forEach((element) => {
+    element.addEventListener('click', closeCategoryModal);
+  });
+  updateCategoryAddState();
 
   sortSelect.addEventListener('change', () => {
     state.sort = sortSelect.value;
@@ -439,7 +686,7 @@
     state.q = '';
     state.page = 1;
     searchInput.value = '';
-    document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === 'all'));
+    tabsEl.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === 'all'));
     syncTabIndicator();
     render();
     searchInput.focus();
@@ -457,9 +704,13 @@
   confirmDeleteBtn.addEventListener('click', confirmDeleteArticle);
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (!deleteModal.hidden) closeDelete();
+    if (!categoryModal.hidden) closeCategoryModal();
+    else if (!deleteModal.hidden) closeDelete();
     else if (!backupModal.hidden) closeBackup();
   });
+  window.addEventListener('storage', detectCategoryChange);
+  window.addEventListener('focus', loadCategoriesFromStorage);
+  window.addEventListener('pageshow', loadCategoriesFromStorage);
 
   /* ---------------- 初始化 ---------------- */
   const params = new URLSearchParams(window.location.search);
