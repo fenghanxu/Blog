@@ -66,7 +66,7 @@
     tocCard.hidden = false;
     $('#tocBadge').textContent = `${headings.length} 节`;
     tocList.innerHTML = headings.map((heading) => {
-      const level = heading.tagName === 'H3' ? 3 : 2;
+      const level = Math.min(4, Number(heading.tagName.slice(1)) || 1);
       return `<a href="#${heading.id}" class="lv-${level}" data-target="${heading.id}">${Util.escapeHtml(heading.textContent.trim())}</a>`;
     }).join('');
   }
@@ -95,6 +95,167 @@
           toast('复制失败，请手动选择代码');
         }
       });
+    });
+  }
+
+  /* ---------------- 正文图片预览 ---------------- */
+  const viewer = $('#imageViewer');
+  const viewerStage = $('#imageViewerStage');
+  const viewerImg = $('#imageViewerImg');
+  const viewerPrev = $('#imageViewerPrev');
+  const viewerNext = $('#imageViewerNext');
+  const viewerCounter = $('#imageViewerCounter');
+  const viewerCaption = $('#imageViewerCaption');
+  const viewerZoomLabel = $('#imageViewerZoom');
+  let viewerImages = [];
+  let viewerIndex = 0;
+  let viewerScale = 0;
+  let viewerFitWidth = 0;
+  let viewerPointer = null;
+
+  function viewerScaleLabel() {
+    if (!viewerScale) return '100%';
+    return `${Math.round(viewerScale * 100)}%`;
+  }
+
+  function syncViewerSize() {
+    const naturalWidth = viewerImg.naturalWidth || 0;
+    viewerImg.style.width = viewerScale && naturalWidth
+      ? `${Math.round(viewerScale * naturalWidth)}px`
+      : '';
+    viewerImg.style.height = 'auto';
+    viewerZoomLabel.textContent = viewerScaleLabel();
+  }
+
+  function fitViewerImage() {
+    // 图片元数据尚未就绪时不要计算，否则会把缩放值误当成 1px 宽度。
+    if (!viewerImg.naturalWidth || !viewerImg.naturalHeight) return;
+    const style = getComputedStyle(viewerStage);
+    const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const availableWidth = Math.max(120, viewerStage.clientWidth - paddingX);
+    const availableHeight = Math.max(120, viewerStage.clientHeight - paddingY);
+    const naturalWidth = viewerImg.naturalWidth;
+    const naturalHeight = viewerImg.naturalHeight;
+    const fitHeight = availableHeight / naturalHeight;
+    viewerFitWidth = Math.min(availableWidth / naturalWidth, fitHeight);
+    viewerScale = viewerFitWidth;
+    syncViewerSize();
+  }
+
+  function setViewerScale(scale) {
+    const min = (viewerFitWidth || 1) * .35;
+    const max = Math.max((viewerFitWidth || 1) * 5, 4);
+    viewerScale = Math.min(max, Math.max(min, scale));
+    syncViewerSize();
+  }
+
+  function showViewerImage(index) {
+    if (!viewerImages.length) return;
+    viewerIndex = (index + viewerImages.length) % viewerImages.length;
+    const current = viewerImages[viewerIndex];
+    viewerImg.alt = current.alt || '正文图片';
+    viewerCaption.textContent = current.alt || '';
+    viewerCounter.textContent = `${viewerIndex + 1} / ${viewerImages.length}`;
+    viewerPrev.hidden = viewerImages.length < 2;
+    viewerNext.hidden = viewerImages.length < 2;
+    viewerImg.src = current.src;
+    viewerStage.scrollLeft = 0;
+    viewerStage.scrollTop = 0;
+    if (viewerImg.complete && viewerImg.naturalWidth) fitViewerImage();
+  }
+
+  function closeImageViewer() {
+    if (!viewer || viewer.hidden) return;
+    viewer.hidden = true;
+    document.body.style.overflow = '';
+    viewerImg.removeAttribute('src');
+    viewerImages = [];
+    viewerIndex = 0;
+  }
+
+  function openImageViewer(src) {
+    if (!viewer) return;
+    const content = $('#articleContent');
+    viewerImages = Array.from(content.querySelectorAll('img'))
+      .filter((img) => img.getAttribute('src') && !img.classList.contains('is-missing'))
+      .map((img) => ({ src: img.currentSrc || img.src, alt: img.alt || '' }));
+    if (!viewerImages.length) return;
+    const index = Math.max(0, viewerImages.findIndex((item) => item.src === src));
+    viewer.hidden = false;
+    document.body.style.overflow = 'hidden';
+    showViewerImage(index);
+    requestAnimationFrame(() => { if (viewerImg.complete) fitViewerImage(); });
+  }
+
+  function bindImageViewer() {
+    const content = $('#articleContent');
+    if (!viewer || !content) return;
+
+    content.addEventListener('click', (event) => {
+      const img = event.target.closest('img');
+      if (!img || img.classList.contains('is-missing')) return;
+      event.preventDefault();
+      openImageViewer(img.currentSrc || img.src);
+    });
+
+    viewer.addEventListener('click', (event) => {
+      if (event.target.closest('[data-image-close]')) {
+        closeImageViewer();
+        return;
+      }
+      if (event.target.closest('.image-viewer-nav')) return;
+      if (event.target === viewerStage || event.target === viewer) closeImageViewer();
+    });
+    viewerPrev.addEventListener('click', () => showViewerImage(viewerIndex - 1));
+    viewerNext.addEventListener('click', () => showViewerImage(viewerIndex + 1));
+    $('#imageViewerZoomIn').addEventListener('click', () => setViewerScale(viewerScale * 1.2));
+    $('#imageViewerZoomOut').addEventListener('click', () => setViewerScale(viewerScale / 1.2));
+    $('#imageViewerActual').addEventListener('click', () => setViewerScale(1));
+    $('#imageViewerReset').addEventListener('click', fitViewerImage);
+    viewerImg.addEventListener('load', fitViewerImage);
+
+    viewerStage.addEventListener('wheel', (event) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setViewerScale(viewerScale * (event.deltaY < 0 ? 1.12 : 1 / 1.12));
+    }, { passive: false });
+
+    viewerStage.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || event.target.closest('button')) return;
+      viewerPointer = { x: event.clientX, y: event.clientY, left: viewerStage.scrollLeft, top: viewerStage.scrollTop };
+      viewerStage.classList.add('is-grabbing');
+      viewerStage.setPointerCapture?.(event.pointerId);
+    });
+    viewerStage.addEventListener('pointermove', (event) => {
+      if (!viewerPointer) return;
+      viewerStage.scrollLeft = viewerPointer.left - (event.clientX - viewerPointer.x);
+      viewerStage.scrollTop = viewerPointer.top - (event.clientY - viewerPointer.y);
+    });
+    const stopDragging = () => {
+      viewerPointer = null;
+      viewerStage.classList.remove('is-grabbing');
+    };
+    viewerStage.addEventListener('pointerup', stopDragging);
+    viewerStage.addEventListener('pointercancel', stopDragging);
+    viewerStage.addEventListener('dblclick', (event) => {
+      if (event.target.closest('button')) return;
+      if (viewerScale > viewerFitWidth * 1.05) fitViewerImage();
+      else setViewerScale(1);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (viewer.hidden) return;
+      if (event.key === 'Escape') closeImageViewer();
+      else if (event.key === 'ArrowLeft' && viewerImages.length > 1) showViewerImage(viewerIndex - 1);
+      else if (event.key === 'ArrowRight' && viewerImages.length > 1) showViewerImage(viewerIndex + 1);
+      else if (event.key === '+' || event.key === '=') setViewerScale(viewerScale * 1.2);
+      else if (event.key === '-') setViewerScale(viewerScale / 1.2);
+      else if (event.key === '0') fitViewerImage();
+    });
+    window.addEventListener('resize', () => {
+      if (viewer.hidden) return;
+      fitViewerImage();
     });
   }
 
@@ -149,10 +310,11 @@
     content.innerHTML = renderMarkdown(article.body);
     await resolveImages(content);
 
-    const headings = Array.from(content.querySelectorAll('h2, h3'));
+    const headings = Array.from(content.querySelectorAll('h1, h2, h3, h4'));
     headings.forEach((heading, index) => { heading.id = `heading-${index}`; });
     renderToc(headings);
     bindCodeCopy();
+    bindImageViewer();
 
     const reads = await increaseReads(article);
     $('#articleReads').textContent = Util.formatReads(reads);

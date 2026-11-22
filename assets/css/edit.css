@@ -489,7 +489,7 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
 .publish-dialog-hint{margin:3px 0 0;font-size:12px;color:var(--muted)}
 .publish-fields{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px 16px}
 .publish-fields .meta-field select,.publish-fields .meta-field input{height:40px}
-.publish-fields .meta-field textarea{min-height:82px;font-size:13px;line-height:1.7}
+.publish-fields .meta-field textarea{min-height:129px;font-size:13px;line-height:1.7}
 .publish-dialog-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
 .publish-dialog-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:7px;

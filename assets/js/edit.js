@@ -69,6 +69,7 @@
   const resolveImages = Util.createImageResolver();
 
   const DRAFT_PREFIX = 'zjian.edit.draft';
+  const DEFAULT_SUMMARY = '一直觉得自己写的不是技术，而是情怀，一个个的教程是自己这一路走来的痕迹。靠专业技能的成功是最具可复制性的，希望我的这条路能让你们少走弯路，希望我能帮你们抹去知识的蒙尘，希望我能帮你们理清知识的脉络，希望未来技术之巅上有你们也有我。';
   let articleId = Util.queryParam('id') || null;
   let currentArticle = null;
   let isLeaving = false;
@@ -1183,6 +1184,10 @@
 
   function openPublishDialog() {
     if (publishing || !validateBeforePublish() || !publishDialog) return;
+    if (!summaryInput.value.trim()) {
+      summaryInput.value = DEFAULT_SUMMARY;
+      updateSummaryCount();
+    }
     syncPublishConfirmLabel();
     publishDialog.hidden = false;
     syncDialogLock();
