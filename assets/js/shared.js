@@ -24,6 +24,10 @@
   const CATEGORIES = [];
   const CATEGORY_LABEL = {};
   const LEGACY_CATEGORY_LABEL = { frontend: '前端开发', backend: '后端架构', ai: 'AI 与工具', engineering: '工程效率', essay: '随笔' };
+  const DEFAULT_TAGS = ['Extension', '扩展', '技术分享', 'UI'];
+  const TAG_STORAGE_KEY = 'zjian.tags';
+  const TAG_LIMIT = 30;
+  const TAGS = [];
 
   function cleanCategoryLabel(value) {
     return Array.from(String(value || '').replace(/\s+/g, ' ').trim()).slice(0, 16).join('');
@@ -121,7 +125,71 @@
     rebuildCategoryLabels();
   }
 
+  function normalizeTags(list) {
+    const rows = [];
+    const labels = new Set();
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const label = cleanCategoryLabel(typeof item === 'string' ? item : item?.label);
+      const key = label.toLowerCase();
+      if (!label || labels.has(key) || rows.length >= TAG_LIMIT) return;
+      labels.add(key);
+      rows.push(label);
+    });
+    return rows;
+  }
+
+  function persistTags() {
+    try {
+      localStorage.setItem(TAG_STORAGE_KEY, JSON.stringify(TAGS));
+    } catch (error) {
+      throw new Error('浏览器禁用了本地存储，标签无法保存');
+    }
+  }
+
+  function loadTags() {
+    let stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(TAG_STORAGE_KEY) || 'null');
+    } catch (error) {
+      stored = null;
+    }
+    const rows = normalizeTags(stored);
+    TAGS.splice(0, TAGS.length, ...(Array.isArray(stored) ? rows : DEFAULT_TAGS));
+  }
+
+  function getTags() {
+    return TAGS.slice();
+  }
+
+  function applyTags(list) {
+    const rows = normalizeTags(list);
+    TAGS.splice(0, TAGS.length, ...rows);
+    persistTags();
+    return getTags();
+  }
+
+  function addTag(value) {
+    const label = cleanCategoryLabel(value);
+    if (!label) throw new Error('请输入标签名称');
+    if (TAGS.some((tag) => tag.toLowerCase() === label.toLowerCase())) {
+      throw new Error('这个标签已经存在');
+    }
+    if (TAGS.length >= TAG_LIMIT) throw new Error(`最多只能创建 ${TAG_LIMIT} 个标签`);
+    TAGS.push(label);
+    persistTags();
+    return label;
+  }
+
+  function deleteTag(value) {
+    const key = cleanCategoryLabel(value).toLowerCase();
+    const index = TAGS.findIndex((tag) => tag.toLowerCase() === key);
+    if (index < 0) throw new Error('标签不存在或已被删除');
+    TAGS.splice(index, 1);
+    persistTags();
+  }
+
   loadCategories();
+  loadTags();
 
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -497,16 +565,20 @@
     CATEGORY_LABEL,
     addCategory,
     applyCategories,
+    addTag,
+    applyTags,
     categoryLabel,
     blobToDataUrl,
     createId,
     createImageResolver,
     deleteCategory,
+    deleteTag,
     escapeHtml,
     formatDate,
     formatListDate,
     formatReads,
     getCategories,
+    getTags,
     localImageId,
     localImageIds,
     pad2,

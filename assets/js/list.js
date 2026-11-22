@@ -9,10 +9,9 @@
 
   const Util = window.BlogUtil;
   const SORT_LABEL = { latest: '最新发布', reads: '最多阅读', likes: '最多点赞' };
-  const LEGACY_CATEGORY_IDS = new Set(['frontend', 'backend', 'ai', 'engineering', 'essay']);
   const PER_PAGE = 6;
 
-  const state = { cat: 'all', q: '', sort: 'latest', page: 1 };
+  const state = { cat: 'all', tag: '', q: '', sort: 'latest', page: 1 };
   let articles = [];
 
   const $ = (selector) => document.querySelector(selector);
@@ -24,8 +23,12 @@
   const titleEl = $('#listTitle');
   const sortSelect = $('#sortSelect');
   const searchInput = $('#searchInput');
-  const tabsEl = $('#tabs');
-  const tabIndicator = $('#tabIndicator');
+  const categoryFilter = $('#categoryFilter');
+  const categoryFilterBtn = $('#categoryFilterBtn');
+  const categoryMenu = $('#categoryMenu');
+  const tagFilter = $('#tagFilter');
+  const tagFilterBtn = $('#tagFilterBtn');
+  const tagMenu = $('#tagMenu');
   const emptyTitle = $('.empty-title');
   const emptyHint = $('.empty-hint');
   const emptyBtn = $('.empty-btn');
@@ -41,7 +44,6 @@
   const deleteModal = $('#deleteModal');
   const deleteArticleName = $('#deleteArticleName');
   const confirmDeleteBtn = $('#confirmDeleteBtn');
-  const categoryManageBtn = $('#categoryManageBtn');
   const categoryModal = $('#categoryModal');
   const categoryForm = $('#categoryForm');
   const categoryInput = $('#categoryInput');
@@ -49,6 +51,13 @@
   const categoryTotal = $('#categoryTotal');
   const categoryError = $('#categoryError');
   const categoryAddBtn = $('#categoryAddBtn');
+  const tagModal = $('#tagModal');
+  const tagForm = $('#tagForm');
+  const tagInput = $('#tagInput');
+  const tagList = $('#tagList');
+  const tagTotal = $('#tagTotal');
+  const tagError = $('#tagError');
+  const tagAddBtn = $('#tagAddBtn');
 
   let toastTimer = 0;
   let pendingDeleteId = null;
@@ -70,82 +79,93 @@
 
   function renderCategories() {
     const map = counts();
-    tabsEl.querySelectorAll('.tab[data-cat]:not([data-cat="all"])').forEach((tab) => tab.remove());
-    const indicator = tabsEl.querySelector('.tab-indicator');
     const categories = Util.getCategories();
-    categories.forEach((category) => {
-      const tab = document.createElement('button');
-      tab.className = 'tab';
-      tab.type = 'button';
-      tab.dataset.cat = category.id;
-      tab.innerHTML = `${Util.escapeHtml(category.label)}<span class="tab-count" data-count="${Util.escapeHtml(category.id)}">${Util.pad2(map[category.id] || 0)}</span>`;
-      tab.addEventListener('click', () => selectCategory(tab));
-      tabsEl.insertBefore(tab, indicator);
-    });
+    const items = categories.map((category) => `
+      <button class="category-menu-item${state.cat === category.id ? ' is-active' : ''}" type="button" role="menuitemradio" aria-checked="${state.cat === category.id}" data-cat="${Util.escapeHtml(category.id)}">
+        <span>${Util.escapeHtml(category.label)}</span><span class="category-menu-count">${Util.pad2(map[category.id] || 0)}</span>
+      </button>`);
+    categoryMenu.innerHTML = `
+      <button class="category-menu-item${state.cat === 'all' ? ' is-active' : ''}" type="button" role="menuitemradio" aria-checked="${state.cat === 'all'}" data-cat="all">
+        <span>全部文章</span><span class="category-menu-count">${Util.pad2(map.all || 0)}</span>
+      </button>
+      ${items.join('')}
+      <div class="category-menu-divider" role="separator"></div>
+      <button class="category-menu-edit" type="button" role="menuitem" data-category-edit>
+        <span>分类编辑</span><svg class="icon"><use href="#i-pen"/></svg>
+      </button>`;
     if (state.cat !== 'all' && !categories.some((item) => item.id === state.cat) && !articles.some((item) => item.cat === state.cat)) {
       state.cat = 'all';
     }
-    tabsEl.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === state.cat));
-    paintCounts();
-    syncTabIndicator(false);
+    categoryFilterBtn.querySelector('span').textContent = state.cat === 'all' ? '分类' : (categories.find((item) => item.id === state.cat)?.label || '分类');
   }
 
-  function paintCounts() {
-    const map = counts();
-    document.querySelectorAll('.tab-count').forEach((el) => {
-      const id = el.dataset.count;
-      el.textContent = Util.pad2(map[id] || 0);
-    });
+  function openCategoryMenu() {
+    renderCategories();
+    categoryMenu.hidden = false;
+    categoryFilterBtn.setAttribute('aria-expanded', 'true');
+    categoryMenu.querySelector('.category-menu-item')?.focus();
   }
 
-  function selectCategory(tab) {
-    tabsEl.querySelectorAll('.tab').forEach((item) => item.classList.toggle('is-active', item === tab));
-    state.cat = tab.dataset.cat;
+  function closeCategoryMenu() {
+    categoryMenu.hidden = true;
+    categoryFilterBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectCategory(cat) {
+    state.cat = cat;
     state.page = 1;
+    closeCategoryMenu();
     render();
-    syncTabIndicator();
-  }
-
-  function paintUnmanagedTabs() {
-    const categories = new Set(Util.getCategories().map((item) => item.id));
-    const legacy = new Map();
-    articles.forEach((item) => {
-      if (categories.has(item.cat) || LEGACY_CATEGORY_IDS.has(item.cat)) return;
-      legacy.set(item.cat, (legacy.get(item.cat) || 0) + 1);
-    });
-    tabsEl.querySelectorAll('.tab[data-legacy="1"]').forEach((tab) => tab.remove());
-    const indicator = tabsEl.querySelector('.tab-indicator');
-    legacy.forEach((count, id) => {
-      const tab = document.createElement('button');
-      tab.className = 'tab';
-      tab.type = 'button';
-      tab.dataset.cat = id;
-      tab.dataset.legacy = '1';
-      tab.title = '旧分类';
-      tab.innerHTML = `${Util.escapeHtml(Util.categoryLabel(id))}<span class="tab-count" data-count="${Util.escapeHtml(id)}">${Util.pad2(count)}</span>`;
-      tab.addEventListener('click', () => selectCategory(tab));
-      tabsEl.insertBefore(tab, indicator);
-    });
+    renderCategories();
+    categoryFilterBtn.focus();
   }
 
   function syncAllCategories() {
-    paintUnmanagedTabs();
     renderCategories();
-    paintCounts();
+    renderTags();
   }
 
-  function syncTabIndicator(animate = true) {
-    const activeTab = tabsEl.querySelector('.tab.is-active');
-    if (!activeTab || !tabIndicator) return;
+  function tagCounts() {
+    return articles.reduce((map, item) => {
+      (item.tags || []).forEach((tag) => { map[tag] = (map[tag] || 0) + 1; });
+      return map;
+    }, {});
+  }
 
-    if (!animate) tabIndicator.classList.add('is-instant');
-    tabIndicator.style.width = `${activeTab.offsetWidth}px`;
-    tabIndicator.style.transform = `translate3d(${activeTab.offsetLeft}px,0,0)`;
+  function renderTags() {
+    const map = tagCounts();
+    const tags = Util.getTags();
+    tagMenu.innerHTML = `${tags.map((tag) => `
+        <button class="category-menu-item${state.tag === tag ? ' is-active' : ''}" type="button" role="menuitemradio" aria-checked="${state.tag === tag}" data-tag="${Util.escapeHtml(tag)}">
+          <span>${Util.escapeHtml(tag)}</span><span class="category-menu-count">${Util.pad2(map[tag] || 0)}</span>
+        </button>`).join('')}
+      <div class="category-menu-divider" role="separator"></div>
+      <button class="category-menu-edit" type="button" role="menuitem" data-tag-edit>
+        <span>标签编辑</span><svg class="icon"><use href="#i-pen"/></svg>
+      </button>`;
+    if (state.tag && !tags.includes(state.tag)) state.tag = '';
+    tagFilterBtn.querySelector('span').textContent = state.tag || '标签';
+  }
 
-    if (!animate) {
-      tabIndicator.getBoundingClientRect();
-      requestAnimationFrame(() => tabIndicator.classList.remove('is-instant'));
-    }
+  function openTagMenu() {
+    renderTags();
+    tagMenu.hidden = false;
+    tagFilterBtn.setAttribute('aria-expanded', 'true');
+    tagMenu.querySelector('.category-menu-item')?.focus();
+  }
+
+  function closeTagMenu() {
+    tagMenu.hidden = true;
+    tagFilterBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectTag(tag) {
+    state.tag = tag && tag !== state.tag ? tag : '';
+    state.page = 1;
+    closeTagMenu();
+    render();
+    renderTags();
+    tagFilterBtn.focus();
   }
 
   function searchText(item) {
@@ -156,7 +176,8 @@
 
   function filtered() {
     const query = state.q.trim().toLowerCase();
-    let items = articles.filter((item) => state.cat === 'all' || item.cat === state.cat);
+    let items = articles.filter((item) => (state.cat === 'all' || item.cat === state.cat)
+      && (!state.tag || (item.tags || []).includes(state.tag)));
 
     if (query) items = items.filter((item) => searchText(item).includes(query));
 
@@ -278,8 +299,7 @@
       await window.BlogDB.ready();
       articles = await window.BlogDB.list();
       renderCategories();
-      paintUnmanagedTabs();
-      paintCounts();
+      renderTags();
       render();
     } catch (error) {
       setEmpty('error', '读取文章失败', error.message || '请刷新页面重试', '重新加载');
@@ -333,7 +353,7 @@
   function closeCategoryModal() {
     categoryModal.hidden = true;
     document.body.style.overflow = '';
-    categoryManageBtn.focus();
+    categoryFilterBtn.focus();
   }
 
   function syncCategoryViews() {
@@ -425,6 +445,78 @@
     input.addEventListener('blur', () => finish(false));
     input.focus();
     input.select();
+  }
+
+  /* ---------------- 标签编辑 ---------------- */
+  function showTagError(message = '') {
+    tagError.textContent = message;
+    tagError.hidden = !message;
+  }
+
+  function tagUsage() {
+    return articles.reduce((map, item) => {
+      (item.tags || []).forEach((tag) => { map[tag] = (map[tag] || 0) + 1; });
+      return map;
+    }, {});
+  }
+
+  function renderTagManager() {
+    const tags = Util.getTags();
+    const usage = tagUsage();
+    tagList.innerHTML = tags.map((tag) => {
+      const used = usage[tag] || 0;
+      return `
+        <div class="category-tile${used ? ' is-used' : ''}" data-tag-name="${Util.escapeHtml(tag)}">
+          <span class="category-name tag-name" title="${used ? `有 ${used} 篇文章使用` : '暂无文章使用'}">${Util.escapeHtml(tag)}</span>
+          <button class="category-tile-close" type="button" data-delete-tag="${Util.escapeHtml(tag)}" title="${used ? `这个标签下还有 ${used} 篇文章，暂不能删除` : '删除标签'}" aria-label="删除标签：${Util.escapeHtml(tag)}" ${used ? 'disabled' : ''}>
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </div>`;
+    }).join('');
+    tagTotal.textContent = `共 ${tags.length} 个`;
+  }
+
+  function openTagModal() {
+    showTagError();
+    renderTagManager();
+    tagModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    tagModal.querySelector('.modal-close')?.focus();
+  }
+
+  function closeTagModal() {
+    tagModal.hidden = true;
+    document.body.style.overflow = '';
+    tagFilterBtn.focus();
+  }
+
+  function updateTagAddState() {
+    const disabled = !tagInput.value.trim();
+    tagAddBtn.disabled = disabled;
+    tagAddBtn.setAttribute('aria-disabled', String(disabled));
+  }
+
+  function syncTagViews() {
+    if (!tagModal.hidden) renderTagManager();
+    renderTags();
+    render();
+  }
+
+  function loadTagsFromStorage() {
+    try {
+      const stored = JSON.parse(localStorage.getItem('zjian.tags') || 'null');
+      if (Array.isArray(stored) && stored.length) {
+        const incoming = stored.map((tag) => String(tag || '').trim()).filter(Boolean);
+        if (JSON.stringify(incoming) !== JSON.stringify(Util.getTags())) {
+          Util.applyTags(incoming);
+        }
+      }
+    } catch (error) {
+      // 本地标签数据损坏时保留当前内存中的标签。
+    }
+    if (!tagModal.hidden) renderTagManager();
+    renderTags();
+    render();
   }
 
   /* ---------------- 备份与恢复 ---------------- */
@@ -573,7 +665,8 @@
       localStorage.removeItem(`zjian.edit.draft.${id}`);
 
       articles = articles.filter((item) => item.id !== id);
-      paintCounts();
+      renderCategories();
+      renderTags();
       render();
       deleting = false;
       closeDelete();
@@ -594,13 +687,103 @@
     openDelete(deleteButton.dataset.deleteId, deleteButton);
   });
 
-  tabsEl.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      selectCategory(tab);
-    });
+  categoryFilterBtn.addEventListener('click', () => {
+    if (categoryMenu.hidden) openCategoryMenu();
+    else closeCategoryMenu();
   });
-
-  categoryManageBtn.addEventListener('click', openCategoryModal);
+  categoryMenu.addEventListener('click', (event) => {
+    if (event.target.closest('[data-category-edit]')) {
+      closeCategoryMenu();
+      openCategoryModal();
+      return;
+    }
+    const item = event.target.closest('[data-cat]');
+    if (item) selectCategory(item.dataset.cat);
+  });
+  document.addEventListener('click', (event) => {
+    if (!categoryFilter.contains(event.target)) closeCategoryMenu();
+  });
+  categoryMenu.addEventListener('keydown', (event) => {
+    const items = [...categoryMenu.querySelectorAll('button')];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      items[(index + step + items.length) % items.length]?.focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      items[event.key === 'Home' ? 0 : items.length - 1]?.focus();
+    }
+  });
+  tagFilterBtn.addEventListener('click', () => {
+    if (tagMenu.hidden) {
+      closeCategoryMenu();
+      openTagMenu();
+    } else closeTagMenu();
+  });
+  tagMenu.addEventListener('click', (event) => {
+    if (event.target.closest('[data-tag-edit]')) {
+      closeTagMenu();
+      openTagModal();
+      return;
+    }
+    const item = event.target.closest('[data-tag]');
+    if (item) selectTag(item.dataset.tag || '');
+  });
+  tagMenu.addEventListener('keydown', (event) => {
+    const items = [...tagMenu.querySelectorAll('button')];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      items[(index + step + items.length) % items.length]?.focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      items[event.key === 'Home' ? 0 : items.length - 1]?.focus();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!tagFilter.contains(event.target)) closeTagMenu();
+  });
+  tagForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    try {
+      Util.addTag(tagInput.value);
+      tagInput.value = '';
+      updateTagAddState();
+      showTagError();
+      renderTagManager();
+      syncTagViews();
+      toast('标签已添加');
+      tagInput.focus();
+    } catch (error) {
+      showTagError(error.message);
+      tagInput.focus();
+    }
+  });
+  tagInput.addEventListener('input', () => {
+    showTagError();
+    updateTagAddState();
+  });
+  tagList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-tag]');
+    if (!button) return;
+    try {
+      const wasSelected = state.tag === button.dataset.deleteTag;
+      Util.deleteTag(button.dataset.deleteTag);
+      if (wasSelected) state.tag = '';
+      showTagError();
+      renderTagManager();
+      syncTagViews();
+      toast('标签已删除');
+    } catch (error) {
+      showTagError(error.message);
+    }
+  });
+  tagModal.querySelectorAll('[data-close-tag]').forEach((element) => {
+    element.addEventListener('click', closeTagModal);
+  });
+  updateTagAddState();
   categoryForm.addEventListener('submit', (event) => {
     event.preventDefault();
     try {
@@ -683,11 +866,12 @@
     }
 
     state.cat = 'all';
+    state.tag = '';
     state.q = '';
     state.page = 1;
     searchInput.value = '';
-    tabsEl.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.cat === 'all'));
-    syncTabIndicator();
+    renderCategories();
+    renderTags();
     render();
     searchInput.focus();
   });
@@ -704,21 +888,32 @@
   confirmDeleteBtn.addEventListener('click', confirmDeleteArticle);
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (!categoryModal.hidden) closeCategoryModal();
+    if (!categoryMenu.hidden) {
+      closeCategoryMenu();
+      categoryFilterBtn.focus();
+    } else if (!tagMenu.hidden) {
+      closeTagMenu();
+      tagFilterBtn.focus();
+    } else if (!tagModal.hidden) closeTagModal();
+    else if (!categoryModal.hidden) closeCategoryModal();
     else if (!deleteModal.hidden) closeDelete();
     else if (!backupModal.hidden) closeBackup();
   });
   window.addEventListener('storage', detectCategoryChange);
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'zjian.tags' && event.newValue !== event.oldValue) loadTagsFromStorage();
+  });
   window.addEventListener('focus', loadCategoriesFromStorage);
+  window.addEventListener('focus', loadTagsFromStorage);
   window.addEventListener('pageshow', loadCategoriesFromStorage);
+  window.addEventListener('pageshow', loadTagsFromStorage);
 
   /* ---------------- 初始化 ---------------- */
   const params = new URLSearchParams(window.location.search);
   if (params.get('deleted') === '1') toast('文章已删除');
   if (params.get('saved') === '1') toast('文章已保存');
 
-  paintCounts();
-  syncTabIndicator(false);
-  window.addEventListener('resize', () => syncTabIndicator(false));
+  renderCategories();
+  renderTags();
   loadArticles();
 })();
