@@ -65,7 +65,6 @@
 
     tocCard.hidden = false;
     $('#tocBadge').textContent = `${headings.length} 节`;
-    $('#sideSections').textContent = headings.length;
     tocList.innerHTML = headings.map((heading) => {
       const level = heading.tagName === 'H3' ? 3 : 2;
       return `<a href="#${heading.id}" class="lv-${level}" data-target="${heading.id}">${Util.escapeHtml(heading.textContent.trim())}</a>`;
@@ -116,12 +115,16 @@
   async function renderArticle(article) {
     const editUrl = `edit.html?id=${encodeURIComponent(article.id)}`;
     document.title = `${article.title} · 字间`;
-    $('#articleCat').textContent = Util.categoryLabel(article.cat);
     $('#articleTitle').textContent = article.title;
 
     const summaryEl = $('#articleSummary');
-    if (article.summary) {
-      summaryEl.textContent = article.summary;
+    // 旧文章的摘要常被早期 72 字上限截断；识别出来后从正文展开到三行容量。
+    const shortAutoSummary = Util.summarize(article.body, 72);
+    const summary = article.summary === shortAutoSummary
+      ? Util.summarize(article.body, 150)
+      : article.summary;
+    if (summary) {
+      summaryEl.textContent = summary;
       summaryEl.hidden = false;
     }
 
@@ -153,8 +156,6 @@
 
     const reads = await increaseReads(article);
     $('#articleReads').textContent = Util.formatReads(reads);
-    $('#sideReads').textContent = Util.formatReads(reads);
-    $('#sideLikes').textContent = article.likes || 0;
 
     pageState.hidden = true;
     shell.hidden = false;

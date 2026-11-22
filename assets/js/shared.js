@@ -63,7 +63,7 @@
       .trim();
   }
 
-  function summarize(markdown, max = 72) {
+  function summarize(markdown, max = 150) {
     const text = stripMarkdown(markdown);
     if (!text) return '';
     const chars = Array.from(text);
