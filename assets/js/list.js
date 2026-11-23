@@ -212,7 +212,7 @@
     });
   }
 
-  function rowTemplate(item, index) {
+  function rowTemplate(item) {
     const tags = (item.tags || [])
       .map((tag) => `<span class="tag">${Util.escapeHtml(tag)}</span>`)
       .join('');
@@ -223,7 +223,7 @@
 
     return `
       <article class="row${pinned ? ' is-pinned' : ''}" data-id="${Util.escapeHtml(item.id)}">
-        <span class="idx">${Util.pad2(index)}</span>
+        <span class="row-cat"><span class="category-badge">${Util.escapeHtml(Util.categoryLabel(item.cat))}</span></span>
         <a class="row-main" href="${detailUrl}" aria-label="阅读：${Util.escapeHtml(item.title)}">
           <h2 class="title">${Util.escapeHtml(item.title)}</h2>
           <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
@@ -317,7 +317,7 @@
 
     emptyEl.hidden = true;
     listEl.hidden = false;
-    listEl.innerHTML = pageItems.map((item, i) => rowTemplate(item, startIndex + i + 1)).join('');
+    listEl.innerHTML = pageItems.map((item) => rowTemplate(item)).join('');
     rangeEl.textContent = `显示 ${startIndex + 1}-${startIndex + pageItems.length} 篇，共 ${total} 篇`;
     paintPager(totalPages);
   }
