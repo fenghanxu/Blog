@@ -70,11 +70,19 @@
   // 旧分类继续保留读取兼容，已有文章不会因分类列表更新而报错。
   const LEGACY_CATS = new Set(['frontend', 'backend', 'ai', 'engineering', 'essay']);
 
+  function normalizeStamp(value) {
+    if (!value) return '';
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? new Date(time).toISOString() : '';
+  }
+
   function normalize(input = {}, existing = null) {
     const now = new Date().toISOString();
     const body = String(input.body ?? existing?.body ?? '');
     const summary = String(input.summary ?? existing?.summary ?? '').trim();
     const cat = input.cat ?? existing?.cat;
+    const pinnedAt = normalizeStamp(input.pinnedAt === undefined ? existing?.pinnedAt : input.pinnedAt);
+    const unpinnedAt = normalizeStamp(input.unpinnedAt === undefined ? existing?.unpinnedAt : input.unpinnedAt);
 
     return {
       id: existing?.id || input.id || Util.createId(),
@@ -86,7 +94,9 @@
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: input.updatedAt || now,
       reads: Math.max(0, Number(input.reads ?? existing?.reads ?? 0) || 0),
-      likes: Math.max(0, Number(input.likes ?? existing?.likes ?? 0) || 0)
+      likes: Math.max(0, Number(input.likes ?? existing?.likes ?? 0) || 0),
+      pinnedAt,
+      unpinnedAt
     };
   }
 
@@ -137,6 +147,13 @@
     await requestResult(store.put(record));
     await transactionDone(tx);
     return record;
+  }
+
+  async function setPinned(id, pinned) {
+    const stamp = new Date().toISOString();
+    return update(id, pinned
+      ? { pinnedAt: stamp, unpinnedAt: '' }
+      : { pinnedAt: '', unpinnedAt: stamp });
   }
 
   async function remove(id) {
@@ -395,6 +412,7 @@
     list,
     ready,
     remove,
+    setPinned,
     update
   };
 })();

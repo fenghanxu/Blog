@@ -21,7 +21,14 @@
   const workspace = $('#workspace');
   const toastEl = $('#toast');
   const categorySelect = $('#category');
-  const tagsInput = $('#tagsInput');
+  const tagSelect = $('#tagSelect');
+  const tagSelectBtn = $('#tagSelectBtn');
+  const tagSelectMenu = $('#tagSelectMenu');
+  const tagSelectOptions = $('#tagSelectOptions');
+  const tagSelectValue = $('#tagSelectValue');
+  const tagSelectedCount = $('#tagSelectedCount');
+  const tagCreateInput = $('#tagCreateInput');
+  const tagCreateBtn = $('#tagCreateBtn');
   const summaryInput = $('#summaryInput');
   const summaryCount = $('#summaryCount');
   const backLink = $('#backLink');
@@ -76,6 +83,8 @@
   let isLeaving = false;
   let draftKey = draftKeyFor(articleId);
   let publishing = false;
+  let selectedTags = [];
+  let tagMenuOpen = false;
   let dirty = false;
   let importBusy = false;
   let importHtml = '';
@@ -951,12 +960,16 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      closeMenus();
-      closeVideoDialog();
-      closePublishDialog();
-      closeImportDialog();
+    if (event.key !== 'Escape') return;
+    if (tagMenuOpen) {
+      closeTagMenu();
+      tagSelectBtn.focus();
+      return;
     }
+    closeMenus();
+    closeVideoDialog();
+    closePublishDialog();
+    closeImportDialog();
   });
 
   $$('[data-cmd]').forEach((button) => {
@@ -1047,7 +1060,7 @@
       title: titleInput.value,
       body: source.value,
       cat: categorySelect.value,
-      tags: Util.parseTags(tagsInput.value),
+      tags: selectedTags.slice(),
       summary: summaryInput.value,
       articleId,
       savedAt: Date.now()
@@ -1080,7 +1093,7 @@
     titleInput.value = draft.title || '';
     source.value = draft.body || '';
     setCategoryValue(draft.cat);
-    tagsInput.value = Array.isArray(draft.tags) ? draft.tags.join(', ') : (draft.tags || '');
+    setTagValue(draft.tags);
     summaryInput.value = draft.summary || '';
     updateSummaryCount();
     updateStats();
@@ -1088,6 +1101,94 @@
 
   function updateSummaryCount() {
     summaryCount.textContent = `${summaryInput.value.length}/160`;
+  }
+
+  /* ---------------- 标签下拉选择 ---------------- */
+  function tagOptionList() {
+    const rows = Util.getTags();
+    selectedTags.forEach((tag) => {
+      if (!rows.some((item) => item.toLowerCase() === tag.toLowerCase())) rows.push(tag);
+    });
+    return rows;
+  }
+
+  function renderTagSelect() {
+    const rows = tagOptionList();
+    tagSelectOptions.innerHTML = rows.length
+      ? rows.map((tag) => {
+        const active = selectedTags.some((item) => item.toLowerCase() === tag.toLowerCase());
+        return `<button class="tag-option${active ? ' is-selected' : ''}" type="button" role="option" aria-selected="${active}" data-tag-option="${escapeHtml(tag)}">
+          <span class="tag-option-check"><svg class="icon"><use href="#i-check"/></svg></span>
+          <span class="tag-option-label">${escapeHtml(tag)}</span>
+        </button>`;
+      }).join('')
+      : '<p class="tag-option-empty">还没有标签，在下方新建一个吧</p>';
+
+    tagSelectValue.innerHTML = selectedTags.length
+      ? selectedTags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join('')
+      : '<span class="tag-select-placeholder">点击选择标签</span>';
+    tagSelectedCount.textContent = selectedTags.length ? `已选 ${selectedTags.length}` : '可多选';
+    tagSelectBtn.title = selectedTags.join('、');
+  }
+
+  function setTagValue(value) {
+    const rows = Util.parseTags(value);
+    selectedTags = rows.filter((tag, index) => rows.findIndex((item) => item.toLowerCase() === tag.toLowerCase()) === index);
+    renderTagSelect();
+  }
+
+  function openTagMenu() {
+    if (!tagSelectMenu || tagMenuOpen) return;
+    renderTagSelect();
+    tagSelectMenu.hidden = false;
+    tagMenuOpen = true;
+    tagSelectBtn.setAttribute('aria-expanded', 'true');
+    tagSelectOptions.querySelector('.tag-option')?.focus();
+  }
+
+  function closeTagMenu() {
+    if (!tagSelectMenu || !tagMenuOpen) return;
+    tagSelectMenu.hidden = true;
+    tagMenuOpen = false;
+    tagSelectBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleTag(tag) {
+    const key = String(tag).toLowerCase();
+    const index = selectedTags.findIndex((item) => item.toLowerCase() === key);
+    if (index >= 0) selectedTags.splice(index, 1);
+    else selectedTags.push(tag);
+    renderTagSelect();
+    markDirty();
+  }
+
+  function focusTagOption(tag) {
+    tagSelectOptions.querySelectorAll('.tag-option').forEach((option) => {
+      if (option.dataset.tagOption === tag) option.focus();
+    });
+  }
+
+  function createTagFromPicker() {
+    const label = tagCreateInput.value.trim();
+    if (!label) {
+      tagCreateInput.focus();
+      return;
+    }
+    const key = label.toLowerCase();
+    let tag = Util.getTags().find((item) => item.toLowerCase() === key);
+    if (!tag) {
+      try {
+        tag = Util.addTag(label);
+      } catch (error) {
+        toast(error.message || '标签添加失败');
+        return;
+      }
+    }
+    if (!selectedTags.some((item) => item.toLowerCase() === tag.toLowerCase())) selectedTags.push(tag);
+    tagCreateInput.value = '';
+    renderTagSelect();
+    focusTagOption(tag);
+    markDirty();
   }
 
   function populateCategories() {
@@ -1112,7 +1213,7 @@
     titleInput.value = article.title || '';
     source.value = article.body || '';
     setCategoryValue(article.cat);
-    tagsInput.value = (article.tags || []).join(', ');
+    setTagValue(article.tags);
     summaryInput.value = article.summary || '';
     updateSummaryCount();
     updateStats();
@@ -1126,6 +1227,7 @@
   async function loadPage() {
     populateCategories();
     categorySelect.value = Util.getCategories()[0]?.id || '';
+    renderTagSelect();
     updateSummaryCount();
 
     if (articleId) {
@@ -1211,6 +1313,8 @@
       summaryInput.value = DEFAULT_SUMMARY;
       updateSummaryCount();
     }
+    closeTagMenu();
+    renderTagSelect();
     syncPublishConfirmLabel();
     publishDialog.hidden = false;
     syncDialogLock();
@@ -1219,6 +1323,7 @@
 
   function closePublishDialog() {
     if (!publishDialog) return;
+    closeTagMenu();
     publishDialog.hidden = true;
     syncDialogLock();
   }
@@ -1242,7 +1347,7 @@
       title,
       body: source.value,
       cat: categorySelect.value,
-      tags: Util.parseTags(tagsInput.value),
+      tags: selectedTags.slice(),
       summary: summaryInput.value.trim() || Util.summarize(source.value)
     };
 
@@ -1311,8 +1416,50 @@
     markDirty();
   });
 
-  tagsInput.addEventListener('input', () => {
-    markDirty();
+  tagSelectBtn.addEventListener('click', () => {
+    if (tagMenuOpen) closeTagMenu();
+    else openTagMenu();
+  });
+
+  tagSelectBtn.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' || tagMenuOpen) return;
+    event.preventDefault();
+    openTagMenu();
+  });
+
+  tagSelectOptions.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-tag-option]');
+    if (!option) return;
+    // 选项会随选中状态重新渲染，阻止事件冒泡到“点击外部关闭”的判断。
+    event.stopPropagation();
+    const tag = option.dataset.tagOption;
+    toggleTag(tag);
+    focusTagOption(tag);
+  });
+
+  tagSelectOptions.addEventListener('keydown', (event) => {
+    const options = $$('.tag-option', tagSelectOptions);
+    const index = options.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      options[Math.min(options.length - 1, index + 1)]?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index <= 0) tagSelectBtn.focus();
+      else options[index - 1].focus();
+    }
+  });
+
+  tagCreateBtn.addEventListener('click', createTagFromPicker);
+
+  tagCreateInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    createTagFromPicker();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (tagMenuOpen && !event.target.closest('#tagSelect')) closeTagMenu();
   });
 
   summaryInput.addEventListener('input', () => {

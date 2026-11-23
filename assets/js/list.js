@@ -174,6 +174,16 @@
       .toLowerCase();
   }
 
+  function pinTime(item) {
+    const time = item?.pinnedAt ? new Date(item.pinnedAt).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
+  }
+
+  function unpinTime(item) {
+    const time = item?.unpinnedAt ? new Date(item.unpinnedAt).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
+  }
+
   function filtered() {
     const query = state.q.trim().toLowerCase();
     let items = articles.filter((item) => (state.cat === 'all' || item.cat === state.cat)
@@ -186,7 +196,20 @@
       reads: (a, b) => b.reads - a.reads,
       likes: (a, b) => b.likes - a.likes
     };
-    return items.sort(sorters[state.sort]);
+    const bySort = sorters[state.sort];
+
+    // 置顶文章始终排在前面；取消置顶的文章排在所有非置顶文章之前。
+    return items.sort((a, b) => {
+      const aPinned = pinTime(a);
+      const bPinned = pinTime(b);
+      if (aPinned !== bPinned) return bPinned - aPinned;
+
+      const aUnpinned = unpinTime(a);
+      const bUnpinned = unpinTime(b);
+      if (aUnpinned !== bUnpinned) return bUnpinned - aUnpinned;
+
+      return bySort(a, b);
+    });
   }
 
   function rowTemplate(item, index) {
@@ -195,9 +218,11 @@
       .join('');
     const detailUrl = `detail.html?id=${encodeURIComponent(item.id)}`;
     const editUrl = `edit.html?id=${encodeURIComponent(item.id)}`;
+    const pinned = Boolean(item.pinnedAt);
+    const pinText = pinned ? '取消置顶' : '置顶';
 
     return `
-      <article class="row" data-id="${Util.escapeHtml(item.id)}">
+      <article class="row${pinned ? ' is-pinned' : ''}" data-id="${Util.escapeHtml(item.id)}">
         <span class="idx">${Util.pad2(index)}</span>
         <a class="row-main" href="${detailUrl}" aria-label="阅读：${Util.escapeHtml(item.title)}">
           <h2 class="title">${Util.escapeHtml(item.title)}</h2>
@@ -213,6 +238,9 @@
             <span class="likes"><svg class="icon"><use href="#i-heart"/></svg>${item.likes || 0}</span>
           </div>
           <div class="row-actions">
+            <button class="pin-btn${pinned ? ' is-pinned' : ''}" type="button" data-pin-id="${Util.escapeHtml(item.id)}" data-pinned="${pinned}" aria-pressed="${pinned}" aria-label="${pinText}：${Util.escapeHtml(item.title)}" title="${pinText}">
+              <svg class="icon"><use href="#i-pin"/></svg><span>${pinText}</span>
+            </button>
             <a class="edit-link" href="${editUrl}" aria-label="编辑：${Util.escapeHtml(item.title)}">
               <svg class="icon"><use href="#i-pen"/></svg>编辑
             </a>
@@ -679,8 +707,44 @@
     }
   }
 
+  const pinning = new Set();
+
+  async function togglePin(button) {
+    const id = button.dataset.pinId;
+    if (!id || pinning.has(id)) return;
+    const item = articles.find((row) => row.id === id);
+    if (!item) return;
+
+    const nextPinned = !item.pinnedAt;
+    pinning.add(id);
+    button.disabled = true;
+
+    try {
+      await window.BlogDB.ready();
+      const saved = await window.BlogDB.setPinned(id, nextPinned);
+      const index = articles.findIndex((row) => row.id === id);
+      if (index >= 0) articles[index] = { ...articles[index], ...saved };
+      state.page = 1;
+      render();
+      [...listEl.querySelectorAll('[data-pin-id]')]
+        .find((element) => element.dataset.pinId === id)?.focus();
+      toast(nextPinned ? '文章已置顶' : '已取消置顶，文章排在非置顶文章首位');
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message || '操作失败，请重试');
+    } finally {
+      pinning.delete(id);
+    }
+  }
+
   /* ---------------- 事件 ---------------- */
   listEl.addEventListener('click', (event) => {
+    const pinButton = event.target.closest('[data-pin-id]');
+    if (pinButton) {
+      event.preventDefault();
+      togglePin(pinButton);
+      return;
+    }
     const deleteButton = event.target.closest('[data-delete-id]');
     if (!deleteButton) return;
     event.preventDefault();

@@ -32,6 +32,7 @@
   <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.3v3.3M8 5.2h.01" stroke-width="1.8"/></symbol>
   <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2.6 9.4 6.2 13 7.6 9.4 9 8 12.6 6.6 9 3 7.6 6.6 6.2Z"/><path d="M12.4 11.2v2.2M11.3 12.3h2.2"/></symbol>
   <symbol id="i-book" viewBox="0 0 16 16"><path d="M3 3.2h3.2A1.8 1.8 0 0 1 8 4.3a1.8 1.8 0 0 1 1.8-1.1H13v8.8H9.7a1.7 1.7 0 0 0-1.7 1.1 1.7 1.7 0 0 0-1.7-1.1H3Z"/><path d="M8 4.4v7.8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="m3.4 8.2 3 3 6.2-6.4"/></symbol>
   <symbol id="i-import" viewBox="0 0 16 16"><path d="M8 2.5v7.2M5.2 7.2 8 10l2.8-2.8"/><path d="M2.8 10.2v2.3c0 .6.4 1 1 1h8.4c.6 0 1-.4 1-1v-2.3"/></symbol>
   <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 2.2 12.6 3.8v3.6c0 2.7-1.8 4.8-4.6 6-2.8-1.2-4.6-3.3-4.6-6V3.8Z"/><path d="m5.8 7.8 1.4 1.4 3-3"/></symbol>
 </svg>
@@ -200,10 +201,22 @@
         <span>分类</span>
         <select id="category"></select>
       </label>
-      <label class="meta-field">
-        <span>标签</span>
-        <input id="tagsInput" type="text" maxlength="120" placeholder="用逗号分隔，如：Swift, 组件化" autocomplete="off">
-      </label>
+      <div class="meta-field meta-tag-field" id="tagSelect">
+        <span>标签 <em id="tagSelectedCount">可多选</em></span>
+        <div class="tag-select">
+          <button class="tag-select-btn" id="tagSelectBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="tagSelectMenu">
+            <span class="tag-select-value" id="tagSelectValue"><span class="tag-select-placeholder">点击选择标签</span></span>
+            <svg class="icon tag-select-caret"><use href="#i-caret"/></svg>
+          </button>
+          <div class="tag-select-menu" id="tagSelectMenu" hidden>
+            <div class="tag-select-options" id="tagSelectOptions" role="listbox" aria-multiselectable="true" aria-label="选择标签"></div>
+            <div class="tag-select-create">
+              <input id="tagCreateInput" type="text" maxlength="16" placeholder="新建标签，回车添加" autocomplete="off" aria-label="新建标签">
+              <button class="tag-create-btn" id="tagCreateBtn" type="button">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <label class="meta-field meta-field-wide">
         <span>摘要 <em id="summaryCount">0/160</em></span>
         <textarea id="summaryInput" maxlength="160" rows="5" placeholder="留空时自动截取正文开头"></textarea>
