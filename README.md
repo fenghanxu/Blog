@@ -152,3 +152,30 @@ indexedDB.deleteDatabase('zjian-blog');
 - 备份文件的版本迁移与自动定时备份。
 - 点赞、阅读统计的更细粒度去重。
 - 需要跨设备同步时，再把 `db.js` 后面接一层远程 API。
+
+## 只读展示站（`site/`）
+
+`index.html` / `detail.html` / `edit.html` 是本地后台，只在本机使用。对外展示的是 `site/`：由构建脚本根据备份 JSON 生成的纯静态只读站点，没有任何新增、编辑、删除入口，也不会加载 `db.js`。
+
+```bash
+# 1. 后台里点“备份”，导出 JSON，用它覆盖 content/blog-export.json
+# 2. 生成站点
+node tools/build-site.js
+
+# 3. 本地预览
+python3 -m http.server 8123 --directory site
+```
+
+产物：
+
+- `site/index.html`：文章列表，保留分类、标签、搜索、排序、分页。
+- `site/p/<文章标题>.html`：每篇文章一个独立页面，带目录、代码复制和图片放大。
+- `site/images/`：文章图片；`site/sitemap.xml`、`site/robots.txt`、`site/404.html` 一并生成。
+
+几条约定：
+
+- 部署只上传 `site/`，后台文件不会出现在公网地址上。
+- 文章链接由标题生成，首次生成后写入 `content/slugs.json`；改标题不会改链接，想换链接就改这个文件再重新构建。
+- 站点名、域名、每页篇数在 `content/site.json`。绑定自定义域名后记得把 `baseUrl` 一并改掉。
+- 正文里的远程图片会在构建时下载到 `content/media/remote/` 并改成站内地址，避免 CSDN 图片的防盗链。
+- 推送到 `main` 后，`.github/workflows/deploy-site.yml` 会自动构建并发布到 GitHub Pages。

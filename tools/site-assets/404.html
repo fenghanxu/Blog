@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>页面不存在 · {{SITE_NAME}}</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="{{HOME}}favicon.svg" type="image/svg+xml">
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    font:14px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#2c2440;
+    background:
+      radial-gradient(58% 46% at 4% -6%,rgba(196,181,253,.42) 0%,rgba(196,181,253,0) 62%),
+      radial-gradient(52% 46% at 102% -2%,rgba(191,219,254,.5) 0%,rgba(191,219,254,0) 60%),
+      linear-gradient(135deg,#f7f3fd 0%,#f4f1fb 45%,#edf2fd 100%);
+  }
+  .card{
+    max-width:520px;width:100%;padding:44px 32px;text-align:center;background:#fff;
+    border:1px solid #ece6f8;border-radius:22px;box-shadow:0 12px 34px rgba(104,64,196,.07);
+  }
+  .code{font-size:52px;font-weight:700;letter-spacing:2px;color:#c8b7f2;line-height:1}
+  h1{margin:14px 0 8px;font-size:20px;color:#3b3153}
+  p{margin:0 0 22px;color:#a49bb6;font-size:13px}
+  a{
+    display:inline-flex;align-items:center;height:38px;padding:0 18px;border-radius:10px;
+    background:linear-gradient(135deg,#9061f9,#7c3aed);color:#fff;font-size:13px;
+    text-decoration:none;box-shadow:0 8px 20px rgba(124,58,237,.24);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="code">404</div>
+    <h1>这一页不见了</h1>
+    <p>链接可能已经失效，或者文章被移动到了别处。</p>
+    <a href="{{HOME}}">回到全部文章</a>
+  </div>
+</body>
+</html>
