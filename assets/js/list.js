@@ -9,7 +9,7 @@
 
   const Util = window.BlogUtil;
   const SORT_LABEL = { latest: '最新发布', reads: '最多阅读', likes: '最多点赞' };
-  const PER_PAGE = 6;
+  const PER_PAGE = 20;
 
   const state = { cat: 'all', tag: '', q: '', sort: 'latest', page: 1 };
   let articles = [];
@@ -224,7 +224,7 @@
     return `
       <article class="row${pinned ? ' is-pinned' : ''}" data-id="${Util.escapeHtml(item.id)}">
         <span class="row-cat"><span class="category-badge">${Util.escapeHtml(Util.categoryLabel(item.cat))}</span></span>
-        <a class="row-main" href="${detailUrl}" aria-label="阅读：${Util.escapeHtml(item.title)}">
+        <a class="row-main" href="${detailUrl}" target="_blank" rel="noopener" aria-label="在新标签页阅读：${Util.escapeHtml(item.title)}">
           <h2 class="title">${Util.escapeHtml(item.title)}</h2>
           <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
           <div class="tags">${tags}</div>
@@ -739,6 +739,7 @@
 
   /* ---------------- 事件 ---------------- */
   listEl.addEventListener('click', (event) => {
+    if (event.target.closest('a')) return;
     const pinButton = event.target.closest('[data-pin-id]');
     if (pinButton) {
       event.preventDefault();
@@ -746,9 +747,17 @@
       return;
     }
     const deleteButton = event.target.closest('[data-delete-id]');
-    if (!deleteButton) return;
-    event.preventDefault();
-    openDelete(deleteButton.dataset.deleteId, deleteButton);
+    if (deleteButton) {
+      event.preventDefault();
+      openDelete(deleteButton.dataset.deleteId, deleteButton);
+      return;
+    }
+
+    // 点击行内空白区域（分类、日期等）时，也把文章放到新标签页打开。
+    const row = event.target.closest('.row');
+    if (!row || event.target.closest('button') || window.getSelection()?.toString()) return;
+    const articleLink = row.querySelector('.row-main');
+    if (articleLink) window.open(articleLink.href, '_blank', 'noopener');
   });
 
   categoryFilterBtn.addEventListener('click', () => {

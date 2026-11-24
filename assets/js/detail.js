@@ -299,13 +299,6 @@
       .map((tag) => `<span class="tag">${Util.escapeHtml(tag)}</span>`)
       .join('');
 
-    if (tags.length) {
-      $('#tagCard').hidden = false;
-      $('#sideTags').innerHTML = tags
-        .map((tag) => `<a class="tag" href="index.html">${Util.escapeHtml(tag)}</a>`)
-        .join('');
-    }
-
     const content = $('#articleContent');
     content.innerHTML = renderMarkdown(article.body);
     await resolveImages(content);

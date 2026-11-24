@@ -194,10 +194,13 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
   display:grid;grid-template-columns:var(--cat-col) minmax(0,1fr) auto;column-gap:16px;
   padding:19px 28px 21px;
   border-top:1px solid var(--line-soft);
+  cursor:pointer;
   transition:background .18s;
 }
 .row:hover{background:linear-gradient(90deg,#fbf8ff 0%,#fdfbff 58%,#fff 100%)}
 .row-main{display:block;min-width:0;text-decoration:none;border-radius:10px}
+.row-side,.row-actions{cursor:default}
+.row-actions a,.row-actions button{cursor:pointer}
 .row-main:focus-visible{outline:2px solid #cbb8f3;outline-offset:4px}
 .row-cat{display:flex;align-items:center;justify-content:flex-start;min-width:0}
 .category-badge{
