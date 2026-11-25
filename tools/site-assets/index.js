@@ -85,7 +85,7 @@
   function rowTemplate(item) {
     const tags = (item.tags || []).map((tag) => `<span class="tag">${esc(tag)}</span>`).join('');
     return `
-      <a class="row${item.pinnedAt ? ' is-pinned' : ''}" href="${esc(item.url)}">
+      <a class="row${item.pinnedAt ? ' is-pinned' : ''}" href="${esc(item.url)}" target="_blank" rel="noopener">
         <span class="row-cat"><span class="category-badge">${esc(item.catLabel)}</span></span>
         <span class="row-main">
           <h2 class="title">${esc(item.title)}</h2>

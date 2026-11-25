@@ -546,7 +546,7 @@ const listData = {
 };
 
 const staticRows = built.map(({ article, summary, fakeReads }) => `
-      <a class="row" href="p/${article.slug}.html">
+      <a class="row" href="p/${article.slug}.html" target="_blank" rel="noopener">
         <span class="row-cat"><span class="category-badge">${esc(categoryLabel(article.cat))}</span></span>
         <span class="row-main">
           <h2 class="title">${esc(article.title)}</h2>
