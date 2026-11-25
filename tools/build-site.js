@@ -90,11 +90,26 @@ function formatShortDate(iso) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-function formatReads(value) {
-  const n = Number(value) || 0;
-  if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-  return String(n);
+/** 公开站展示的模拟阅读量：5.1–15.9，单位千。 */
+function fakeReadsFor(article) {
+  const stored = Number(article?.fakeReads);
+  if (Number.isFinite(stored) && stored >= 5.1 && stored <= 15.9) {
+    return Math.round(stored * 10) / 10;
+  }
+  // 旧备份没有 fakeReads 时按 id 生成稳定值，保证多次构建结果一致。
+  const key = String(article?.id || article?.slug || article?.title || 'article');
+  let hash = 2166136261;
+  for (let i = 0; i < key.length; i += 1) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.round((5.1 + ((hash >>> 0) / 4294967295) * 10.8) * 10) / 10;
+}
+
+function formatFakeReads(value) {
+  const num = Number(value);
+  const safe = Number.isFinite(num) ? Math.min(15.9, Math.max(5.1, num)) : 5.1;
+  return `${safe.toFixed(1)}k+`;
 }
 
 /* ---------------- 分类 ---------------- */
@@ -130,12 +145,13 @@ function categoryLabel(id) {
 /* ---------------- 读取数据 ---------------- */
 
 const backup = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
-const rawArticles = (backup.articles || []).filter((item) => item && item.title);
+const rawArticles = (backup.articles || []).filter((item) => (
+  item && item.title && String(item.visibility || 'public') !== 'private'
+));
 const rawImages = backup.images || [];
 
 if (!rawArticles.length) {
-  console.error(`备份里没有文章：${inputPath}`);
-  process.exit(1);
+  console.warn(`备份里没有公开文章，将生成空的只读站点：${inputPath}`);
 }
 
 /* ---------------- 文章链接（确定性、可保持） ---------------- */
@@ -191,8 +207,20 @@ writeFile(slugFile, JSON.stringify(slugMap, null, 2) + '\n');
 
 const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/avif': 'avif' };
 const imageFiles = new Map();
+const publicImageIds = new Set();
+
+rawArticles.forEach((article) => {
+  const pattern = /blog-image\/([^\s)"'<>]+)/g;
+  let match = pattern.exec(String(article.body || ''));
+  while (match) {
+    publicImageIds.add(decodeURIComponent(match[1]));
+    match = pattern.exec(String(article.body || ''));
+  }
+});
 
 rawImages.forEach((image) => {
+  // 只输出公开文章实际引用的图片，避免私密文章的素材泄漏到只读站点。
+  if (!publicImageIds.has(image.id)) return;
   const match = /^data:([^;,]+);base64,(.*)$/s.exec(String(image.dataUrl || ''));
   if (!match) return;
   const ext = IMG_EXT[match[1]] || 'bin';
@@ -431,11 +459,11 @@ const built = ordered.map((article) => {
   const summary = summaryOf(article);
   const url = `${BASE_URL}/p/${article.slug}.html`;
   const cover = coverOf(article, html);
-  return { article, html, toc, summary, url, cover };
+  return { article, html, toc, summary, url, cover, fakeReads: fakeReadsFor(article) };
 });
 
 built.forEach((item, index) => {
-  const { article, html, toc, summary, url, cover } = item;
+  const { article, html, toc, summary, url, cover, fakeReads } = item;
   const prev = built[index - 1];
   const next = built[index + 1];
 
@@ -481,7 +509,7 @@ built.forEach((item, index) => {
     ARTICLE_SUMMARY_BLOCK: summary ? `<p class="lead">${esc(summary)}</p>` : '',
     CATEGORY: esc(categoryLabel(article.cat)),
     DATE: esc(formatDate(article.createdAt)),
-    READS: esc(formatReads(article.reads)),
+    READS: esc(formatFakeReads(fakeReads)),
     TAGS: tagHtml,
     TAGS_BLOCK: tagHtml ? `<div class="tag-row">${tagHtml}</div>` : '',
     TOC: tocHtml,
@@ -501,7 +529,7 @@ const listData = {
   perPage: PER_PAGE,
   categories,
   tags,
-  articles: built.map(({ article, summary, url }) => ({
+  articles: built.map(({ article, summary, url, fakeReads }) => ({
     id: article.id,
     title: article.title,
     summary,
@@ -509,7 +537,7 @@ const listData = {
     catLabel: categoryLabel(article.cat),
     tags: article.tags || [],
     createdAt: article.createdAt || '',
-    reads: Number(article.reads) || 0,
+    reads: fakeReads,
     likes: Number(article.likes) || 0,
     pinnedAt: article.pinnedAt || '',
     url: `p/${article.slug}.html`,
@@ -517,7 +545,7 @@ const listData = {
   }))
 };
 
-const staticRows = built.map(({ article, summary }) => `
+const staticRows = built.map(({ article, summary, fakeReads }) => `
       <a class="row" href="p/${article.slug}.html">
         <span class="row-cat"><span class="category-badge">${esc(categoryLabel(article.cat))}</span></span>
         <span class="row-main">
@@ -525,7 +553,7 @@ const staticRows = built.map(({ article, summary }) => `
           <p class="summary">${esc(summary || '暂无摘要')}</p>
           <span class="tags">${(article.tags || []).map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}</span>
         </span>
-        <span class="row-side"><span class="meta"><span>${esc(formatShortDate(article.createdAt))}</span><span class="dot">·</span><span>阅读 ${esc(formatReads(article.reads))}</span></span></span>
+        <span class="row-side"><span class="meta"><span>${esc(formatShortDate(article.createdAt))}</span><span class="dot">·</span><span>阅读 ${esc(formatFakeReads(fakeReads))}</span></span></span>
       </a>`).join('');
 
 const indexPage = fill(tplIndex, {

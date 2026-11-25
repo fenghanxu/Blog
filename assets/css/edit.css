@@ -209,6 +209,7 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
   border:1px solid #e6d9ff;border-radius:6px;background:#f5efff;
   color:#6f4fc0;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;
 }
+.tag-chip.is-private{background:#f5f3f8;border-color:#e6e1ef;color:#7b718c}
 .tag-select-caret{
   position:absolute;right:11px;top:50%;width:14px;height:14px;
   color:#9d91b3;transform:translateY(-50%);transition:transform .18s;
@@ -221,6 +222,8 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
   animation:tag-menu-in .14s ease-out;
 }
 .tag-select-menu[hidden]{display:none}
+#categorySelectMenu{min-width:238px}
+#visibilitySelectMenu{min-width:170px}
 @keyframes tag-menu-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .tag-select-options{max-height:190px;overflow:auto;overscroll-behavior:contain}
 .tag-option{
@@ -567,7 +570,7 @@ svg.icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-w
 .publish-dialog-icon .icon{width:18px;height:18px}
 .publish-dialog-head h3{margin:0;font-size:17px;color:var(--ink)}
 .publish-dialog-hint{margin:3px 0 0;font-size:12px;color:var(--muted)}
-.publish-fields{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px 16px}
+.publish-fields{display:grid;grid-template-columns:140px 140px minmax(0,1fr);gap:14px 16px}
 .publish-fields .meta-field select,.publish-fields .meta-field input{height:40px}
 .publish-fields .meta-field select{padding-right:34px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4.8 6.4 3.2 3.2 3.2-3.2' fill='none' stroke='%238f88a0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
 .publish-fields .meta-field textarea{min-height:129px;font-size:13px;line-height:1.7}

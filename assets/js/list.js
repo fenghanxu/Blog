@@ -220,12 +220,13 @@
     const editUrl = `edit.html?id=${encodeURIComponent(item.id)}`;
     const pinned = Boolean(item.pinnedAt);
     const pinText = pinned ? '取消置顶' : '置顶';
+    const isPrivate = item.visibility === 'private';
 
     return `
       <article class="row${pinned ? ' is-pinned' : ''}" data-id="${Util.escapeHtml(item.id)}">
         <span class="row-cat"><span class="category-badge">${Util.escapeHtml(Util.categoryLabel(item.cat))}</span></span>
         <a class="row-main" href="${detailUrl}" target="_blank" rel="noopener" aria-label="在新标签页阅读：${Util.escapeHtml(item.title)}">
-          <h2 class="title">${Util.escapeHtml(item.title)}</h2>
+          <h2 class="title">${Util.escapeHtml(item.title)}<span class="visibility-badge ${isPrivate ? 'is-private' : 'is-public'}" title="${isPrivate ? '私密文章不会出现在只读站点' : '公开文章会出现在只读站点'}">${isPrivate ? '私密' : '公开'}</span></h2>
           <p class="summary">${Util.escapeHtml(item.summary || '暂无摘要')}</p>
           <div class="tags">${tags}</div>
         </a>
@@ -234,8 +235,6 @@
             <span>${Util.formatListDate(item.createdAt)}</span>
             <span class="dot">·</span>
             <span>阅读 ${Util.formatReads(item.reads)}</span>
-            <span class="dot">·</span>
-            <span class="likes"><svg class="icon"><use href="#i-heart"/></svg>${item.likes || 0}</span>
           </div>
           <div class="row-actions">
             <button class="pin-btn${pinned ? ' is-pinned' : ''}" type="button" data-pin-id="${Util.escapeHtml(item.id)}" data-pinned="${pinned}" aria-pressed="${pinned}" aria-label="${pinText}：${Util.escapeHtml(item.title)}" title="${pinText}">

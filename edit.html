@@ -193,14 +193,38 @@
       <span class="publish-dialog-icon" aria-hidden="true"><svg class="icon"><use href="#i-doc"/></svg></span>
       <div>
         <h3 id="publishDialogTitle">文章信息</h3>
-        <p class="publish-dialog-hint">发布前确认分类、标签与摘要</p>
+        <p class="publish-dialog-hint">发布前确认可见范围、分类、标签与摘要</p>
       </div>
     </div>
     <div class="publish-fields">
-      <label class="meta-field">
+      <div class="meta-field" id="categorySelect">
         <span>分类</span>
-        <select id="category"></select>
-      </label>
+        <div class="tag-select">
+          <button class="tag-select-btn" id="categorySelectBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="categorySelectMenu">
+            <span class="tag-select-value" id="categorySelectValue"><span class="tag-select-placeholder">点击选择分类</span></span>
+            <svg class="icon tag-select-caret"><use href="#i-caret"/></svg>
+          </button>
+          <div class="tag-select-menu" id="categorySelectMenu" hidden>
+            <div class="tag-select-options" id="categorySelectOptions" role="listbox" aria-label="选择分类"></div>
+            <div class="tag-select-create">
+              <input id="categoryCreateInput" type="text" maxlength="16" placeholder="新建分类，回车添加" autocomplete="off" aria-label="新建分类">
+              <button class="tag-create-btn" id="categoryCreateBtn" type="button">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="meta-field" id="visibilitySelect">
+        <span>可见范围</span>
+        <div class="tag-select">
+          <button class="tag-select-btn" id="visibilitySelectBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="visibilitySelectMenu">
+            <span class="tag-select-value" id="visibilitySelectValue"><span class="tag-chip">公开</span></span>
+            <svg class="icon tag-select-caret"><use href="#i-caret"/></svg>
+          </button>
+          <div class="tag-select-menu" id="visibilitySelectMenu" hidden>
+            <div class="tag-select-options" id="visibilitySelectOptions" role="listbox" aria-label="选择可见范围"></div>
+          </div>
+        </div>
+      </div>
       <div class="meta-field meta-tag-field" id="tagSelect">
         <span>标签 <em id="tagSelectedCount">可多选</em></span>
         <div class="tag-select">
@@ -249,7 +273,7 @@
           <svg class="icon"><use href="#i-shield"/></svg>
           <span>
             <b>清理 CSDN 右下角水印</b>
-            <small>下载后先清理，再保存到本地图片库；不会保留原图。</small>
+            <small>下载后先清理，再保存到本地图片库；GIF 动图会自动保留原始动画。</small>
           </span>
           <input type="checkbox" id="importWatermarkEnabled" checked>
         </label>

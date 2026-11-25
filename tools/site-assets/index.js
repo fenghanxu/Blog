@@ -46,10 +46,9 @@
   }
 
   function formatReads(value) {
-    const n = Number(value) || 0;
-    if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-    return String(n);
+    const num = Number(value);
+    const safe = Number.isFinite(num) ? Math.min(15.9, Math.max(5.1, num)) : 5.1;
+    return `${safe.toFixed(1)}k+`;
   }
 
   function formatDate(iso) {

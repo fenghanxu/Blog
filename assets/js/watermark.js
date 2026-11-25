@@ -20,6 +20,11 @@
     }
   }
 
+  /** GIF 动图无法通过 canvas 保留多帧，需原样保存以免退化为静态首帧。 */
+  function isGif(blob, src = '') {
+    return /^image\/gif$/i.test(String(blob?.type || '')) || /\.gif(?:[?#]|$)/i.test(String(src || ''));
+  }
+
   function smoothstep(value) {
     const t = clamp(value, 0, 1);
     return t * t * (3 - 2 * t);
@@ -152,6 +157,7 @@
     if (!blob || !String(blob.type || '').startsWith('image/')) {
       throw new Error('不是可处理的图片');
     }
+    if (isGif(blob, options.source)) return blob;
     const supportsAlpha = !/^image\/(jpe?g|webp)$/i.test(blob.type || '');
     const bitmap = await decodeBlob(blob);
     const width = bitmap.width || bitmap.naturalWidth;
@@ -192,12 +198,13 @@
     }
 
     bitmap.close?.();
-    const type = blob.type === 'image/jpeg' ? 'image/jpeg' : blob.type === 'image/webp' ? 'image/webp' : blob.type === 'image/gif' ? 'image/png' : blob.type;
+    const type = blob.type === 'image/jpeg' ? 'image/jpeg' : blob.type === 'image/webp' ? 'image/webp' : blob.type;
     return canvasToBlob(canvas, type);
   }
 
   window.BlogWatermark = {
     isCsdnImage,
+    isGif,
     process,
     regionFor
   };

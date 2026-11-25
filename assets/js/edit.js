@@ -20,7 +20,17 @@
   const tocBadge = $('#tocBadge');
   const workspace = $('#workspace');
   const toastEl = $('#toast');
-  const categorySelect = $('#category');
+  const categorySelect = $('#categorySelect');
+  const categorySelectBtn = $('#categorySelectBtn');
+  const categorySelectMenu = $('#categorySelectMenu');
+  const categorySelectOptions = $('#categorySelectOptions');
+  const categorySelectValue = $('#categorySelectValue');
+  const categoryCreateInput = $('#categoryCreateInput');
+  const categoryCreateBtn = $('#categoryCreateBtn');
+  const visibilitySelectBtn = $('#visibilitySelectBtn');
+  const visibilitySelectMenu = $('#visibilitySelectMenu');
+  const visibilitySelectOptions = $('#visibilitySelectOptions');
+  const visibilitySelectValue = $('#visibilitySelectValue');
   const tagSelect = $('#tagSelect');
   const tagSelectBtn = $('#tagSelectBtn');
   const tagSelectMenu = $('#tagSelectMenu');
@@ -85,6 +95,10 @@
   let publishing = false;
   let selectedTags = [];
   let tagMenuOpen = false;
+  let selectedCategory = '';
+  let categoryMenuOpen = false;
+  let selectedVisibility = 'public';
+  let visibilityMenuOpen = false;
   let dirty = false;
   let importBusy = false;
   let importHtml = '';
@@ -401,7 +415,15 @@
         if (request !== watermarkPreviewRequest) return;
         watermarkOriginalObjectUrl = URL.createObjectURL(sourceBlob);
         importWatermarkOriginal.src = watermarkOriginalObjectUrl;
-        const processed = await window.BlogWatermark.process(sourceBlob, { mode: watermarkMode() });
+        if (window.BlogWatermark.isGif(sourceBlob, target.src)) {
+          // GIF 动图经 canvas 处理会丢失动画，预览与保存都保留原始文件。
+          importWatermarkProcessed.src = watermarkOriginalObjectUrl;
+          importWatermarkProcessed.classList.remove('is-loading');
+          if (importWatermarkRetry) importWatermarkRetry.hidden = true;
+          importWatermarkHint.textContent = 'GIF 动图将保留原始动画，不做水印清理。';
+          return;
+        }
+        const processed = await window.BlogWatermark.process(sourceBlob, { mode: watermarkMode(), source: target.src });
         if (request !== watermarkPreviewRequest) return;
         watermarkPreviewObjectUrl = URL.createObjectURL(processed);
         importWatermarkProcessed.src = watermarkPreviewObjectUrl;
@@ -961,6 +983,16 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (visibilityMenuOpen) {
+      closeVisibilityMenu();
+      visibilitySelectBtn.focus();
+      return;
+    }
+    if (categoryMenuOpen) {
+      closeCategoryMenu();
+      categorySelectBtn.focus();
+      return;
+    }
     if (tagMenuOpen) {
       closeTagMenu();
       tagSelectBtn.focus();
@@ -1059,7 +1091,8 @@
     return {
       title: titleInput.value,
       body: source.value,
-      cat: categorySelect.value,
+      cat: selectedCategory,
+      visibility: selectedVisibility,
       tags: selectedTags.slice(),
       summary: summaryInput.value,
       articleId,
@@ -1093,6 +1126,7 @@
     titleInput.value = draft.title || '';
     source.value = draft.body || '';
     setCategoryValue(draft.cat);
+    setVisibilityValue(draft.visibility);
     setTagValue(draft.tags);
     summaryInput.value = draft.summary || '';
     updateSummaryCount();
@@ -1139,6 +1173,8 @@
 
   function openTagMenu() {
     if (!tagSelectMenu || tagMenuOpen) return;
+    closeCategoryMenu();
+    closeVisibilityMenu();
     renderTagSelect();
     tagSelectMenu.hidden = false;
     tagMenuOpen = true;
@@ -1191,28 +1227,151 @@
     markDirty();
   }
 
-  function populateCategories() {
-    categorySelect.innerHTML = Util.getCategories()
-      .map((item) => `<option value="${item.id}">${Util.escapeHtml(item.label)}</option>`)
-      .join('');
+  /* ---------------- 分类下拉选择（单选） ---------------- */
+  function categoryOptionList() {
+    const rows = Util.getCategories();
+    if (selectedCategory && !rows.some((item) => item.id === selectedCategory)) {
+      rows.push({ id: selectedCategory, label: `${Util.categoryLabel(selectedCategory)}（旧分类）` });
+    }
+    return rows;
+  }
+
+  function renderCategorySelect() {
+    const rows = categoryOptionList();
+    categorySelectOptions.innerHTML = rows.length
+      ? rows.map((item) => {
+        const active = item.id === selectedCategory;
+        return `<button class="tag-option${active ? ' is-selected' : ''}" type="button" role="option" aria-selected="${active}" data-category-option="${escapeHtml(item.id)}">
+          <span class="tag-option-check"><svg class="icon"><use href="#i-check"/></svg></span>
+          <span class="tag-option-label">${escapeHtml(item.label)}</span>
+        </button>`;
+      }).join('')
+      : '<p class="tag-option-empty">还没有分类，在下方新建一个吧</p>';
+
+    const current = rows.find((item) => item.id === selectedCategory);
+    categorySelectValue.innerHTML = current
+      ? `<span class="tag-chip">${escapeHtml(current.label)}</span>`
+      : '<span class="tag-select-placeholder">点击选择分类</span>';
+    categorySelectBtn.title = current ? current.label : '';
+  }
+
+  function openCategoryMenu() {
+    if (!categorySelectMenu || categoryMenuOpen) return;
+    closeVisibilityMenu();
+    closeTagMenu();
+    renderCategorySelect();
+    categorySelectMenu.hidden = false;
+    categoryMenuOpen = true;
+    categorySelectBtn.setAttribute('aria-expanded', 'true');
+    (categorySelectOptions.querySelector('.tag-option.is-selected')
+      || categorySelectOptions.querySelector('.tag-option'))?.focus();
+  }
+
+  function closeCategoryMenu() {
+    if (!categorySelectMenu || !categoryMenuOpen) return;
+    categorySelectMenu.hidden = true;
+    categoryMenuOpen = false;
+    categorySelectBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectCategory(id) {
+    if (!id || id === selectedCategory) return;
+    selectedCategory = id;
+    renderCategorySelect();
+    markDirty();
+  }
+
+  function focusCategoryOption(id) {
+    $$('.tag-option', categorySelectOptions).forEach((option) => {
+      if (option.dataset.categoryOption === id) option.focus();
+    });
+  }
+
+  function createCategoryFromPicker() {
+    const label = categoryCreateInput.value.trim();
+    if (!label) {
+      categoryCreateInput.focus();
+      return;
+    }
+    const key = label.toLowerCase();
+    let category = Util.getCategories().find((item) => item.label.toLowerCase() === key);
+    if (!category) {
+      try {
+        category = Util.addCategory(label);
+      } catch (error) {
+        toast(error.message || '分类添加失败');
+        return;
+      }
+    }
+    selectedCategory = category.id;
+    categoryCreateInput.value = '';
+    renderCategorySelect();
+    focusCategoryOption(category.id);
+    markDirty();
+  }
+
+  /* ---------------- 公开 / 私密选择 ---------------- */
+  const VISIBILITY_OPTIONS = [
+    { id: 'public', label: '公开', hint: '只读站点可见' },
+    { id: 'private', label: '私密', hint: '只读站点不展示' }
+  ];
+
+  function renderVisibilitySelect() {
+    visibilitySelectOptions.innerHTML = VISIBILITY_OPTIONS.map((item) => {
+      const active = item.id === selectedVisibility;
+      return `<button class="tag-option${active ? ' is-selected' : ''}" type="button" role="option" aria-selected="${active}" data-visibility-option="${item.id}">
+        <span class="tag-option-check"><svg class="icon"><use href="#i-check"/></svg></span>
+        <span class="tag-option-label">${item.label}</span>
+      </button>`;
+    }).join('');
+    const current = VISIBILITY_OPTIONS.find((item) => item.id === selectedVisibility) || VISIBILITY_OPTIONS[0];
+    visibilitySelectValue.innerHTML = `<span class="tag-chip${current.id === 'private' ? ' is-private' : ''}">${current.label}</span>`;
+    visibilitySelectBtn.title = current.hint;
+  }
+
+  function setVisibilityValue(value) {
+    selectedVisibility = value === 'private' ? 'private' : 'public';
+    renderVisibilitySelect();
+  }
+
+  function openVisibilityMenu() {
+    if (!visibilitySelectMenu || visibilityMenuOpen) return;
+    closeCategoryMenu();
+    closeTagMenu();
+    renderVisibilitySelect();
+    visibilitySelectMenu.hidden = false;
+    visibilityMenuOpen = true;
+    visibilitySelectBtn.setAttribute('aria-expanded', 'true');
+    (visibilitySelectOptions.querySelector('.tag-option.is-selected')
+      || visibilitySelectOptions.querySelector('.tag-option'))?.focus();
+  }
+
+  function closeVisibilityMenu() {
+    if (!visibilitySelectMenu || !visibilityMenuOpen) return;
+    visibilitySelectMenu.hidden = true;
+    visibilityMenuOpen = false;
+    visibilitySelectBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectVisibility(value) {
+    if (value !== 'private' && value !== 'public') return;
+    if (value === selectedVisibility) return;
+    selectedVisibility = value;
+    renderVisibilitySelect();
+    markDirty();
   }
 
   function setCategoryValue(cat) {
     const categories = Util.getCategories();
-    const id = cat || categories[0]?.id || '';
-    if (!categorySelect.querySelector(`option[value="${id}"]`)) {
-      const option = document.createElement('option');
-      option.value = id;
-      option.textContent = categories.some((item) => item.id === id) ? Util.categoryLabel(id) : `${Util.categoryLabel(id)}（旧分类）`;
-      categorySelect.append(option);
-    }
-    categorySelect.value = id;
+    selectedCategory = cat || categories[0]?.id || '';
+    renderCategorySelect();
   }
 
   function fillForm(article) {
     titleInput.value = article.title || '';
     source.value = article.body || '';
     setCategoryValue(article.cat);
+    setVisibilityValue(article.visibility);
     setTagValue(article.tags);
     summaryInput.value = article.summary || '';
     updateSummaryCount();
@@ -1225,8 +1384,8 @@
   }
 
   async function loadPage() {
-    populateCategories();
-    categorySelect.value = Util.getCategories()[0]?.id || '';
+    setCategoryValue(Util.getCategories()[0]?.id || '');
+    setVisibilityValue('public');
     renderTagSelect();
     updateSummaryCount();
 
@@ -1314,16 +1473,22 @@
       updateSummaryCount();
     }
     closeTagMenu();
+    closeCategoryMenu();
+    closeVisibilityMenu();
     renderTagSelect();
+    renderCategorySelect();
+    renderVisibilitySelect();
     syncPublishConfirmLabel();
     publishDialog.hidden = false;
     syncDialogLock();
-    categorySelect.focus();
+    categorySelectBtn.focus();
   }
 
   function closePublishDialog() {
     if (!publishDialog) return;
     closeTagMenu();
+    closeCategoryMenu();
+    closeVisibilityMenu();
     publishDialog.hidden = true;
     syncDialogLock();
   }
@@ -1346,7 +1511,8 @@
     const payload = {
       title,
       body: source.value,
-      cat: categorySelect.value,
+      cat: selectedCategory,
+      visibility: selectedVisibility,
       tags: selectedTags.slice(),
       summary: summaryInput.value.trim() || Util.summarize(source.value)
     };
@@ -1412,8 +1578,78 @@
     markDirty();
   });
 
-  categorySelect.addEventListener('change', () => {
-    markDirty();
+  categorySelectBtn.addEventListener('click', () => {
+    if (categoryMenuOpen) closeCategoryMenu();
+    else openCategoryMenu();
+  });
+
+  categorySelectBtn.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' || categoryMenuOpen) return;
+    event.preventDefault();
+    openCategoryMenu();
+  });
+
+  categorySelectOptions.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-category-option]');
+    if (!option) return;
+    event.stopPropagation();
+    selectCategory(option.dataset.categoryOption);
+    closeCategoryMenu();
+    categorySelectBtn.focus();
+  });
+
+  categorySelectOptions.addEventListener('keydown', (event) => {
+    const options = $$('.tag-option', categorySelectOptions);
+    const index = options.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      options[Math.min(options.length - 1, index + 1)]?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index <= 0) categorySelectBtn.focus();
+      else options[index - 1].focus();
+    }
+  });
+
+  categoryCreateBtn.addEventListener('click', createCategoryFromPicker);
+
+  categoryCreateInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    createCategoryFromPicker();
+  });
+
+  visibilitySelectBtn.addEventListener('click', () => {
+    if (visibilityMenuOpen) closeVisibilityMenu();
+    else openVisibilityMenu();
+  });
+
+  visibilitySelectBtn.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' || visibilityMenuOpen) return;
+    event.preventDefault();
+    openVisibilityMenu();
+  });
+
+  visibilitySelectOptions.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-visibility-option]');
+    if (!option) return;
+    event.stopPropagation();
+    selectVisibility(option.dataset.visibilityOption);
+    closeVisibilityMenu();
+    visibilitySelectBtn.focus();
+  });
+
+  visibilitySelectOptions.addEventListener('keydown', (event) => {
+    const options = $$('.tag-option', visibilitySelectOptions);
+    const index = options.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      options[Math.min(options.length - 1, index + 1)]?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index <= 0) visibilitySelectBtn.focus();
+      else options[index - 1].focus();
+    }
   });
 
   tagSelectBtn.addEventListener('click', () => {
@@ -1460,6 +1696,8 @@
 
   document.addEventListener('click', (event) => {
     if (tagMenuOpen && !event.target.closest('#tagSelect')) closeTagMenu();
+    if (categoryMenuOpen && !event.target.closest('#categorySelect')) closeCategoryMenu();
+    if (visibilityMenuOpen && !event.target.closest('#visibilitySelect')) closeVisibilityMenu();
   });
 
   summaryInput.addEventListener('input', () => {

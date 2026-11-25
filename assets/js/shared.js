@@ -363,7 +363,9 @@
   function proxyImageUrl(src) {
     const url = parseUrl(src);
     if (!url || !PROXY_HOSTS.has(url.hostname.toLowerCase())) return '';
-    return `https://images.weserv.nl/?url=${encodeURIComponent(url.href)}`;
+    // weserv 默认只输出 GIF 首帧；n=-1 表示保留全部帧，避免动图变成静态图。
+    const animated = /\.gif(?:[?#]|$)/i.test(url.pathname + url.search) ? '&n=-1' : '';
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url.href)}${animated}`;
   }
 
   function imageExtension(blobUrl, fallback = 'png') {
@@ -377,9 +379,12 @@
 
   async function downloadRemoteImage(src, options = {}) {
     // 清理和保留原图分开复用缓存，避免旧原图被误当作已清理图片。
+    const wantsGif = !!window.BlogWatermark?.isGif?.(null, src);
     const existing = await window.BlogDB.findImageBySource(src, (image) => (
       options.cleanWatermark
-        ? image.watermarkStatus === 'cleaned' && image.watermarkMode === (options.mode || 'fill')
+        ? (wantsGif
+          ? image.type === 'image/gif' || image.watermarkStatus === 'animated'
+          : (image.watermarkStatus === 'cleaned' && image.watermarkMode === (options.mode || 'fill')))
         : image.watermarkStatus !== 'cleaned'
     )).catch(() => null);
     if (existing) return existing;
@@ -406,16 +411,19 @@
         if (blob.type && !blob.type.startsWith('image/')) throw new Error('返回内容不是图片');
 
         const finalType = blob.type || `image/${imageExtension(src)}`;
-        const ext = imageExtension(src, finalType.split('/')[1] || 'png');
+        const animated = /^image\/gif$/i.test(finalType)
+          || /^gif$/i.test(imageExtension(src, ''))
+          || !!window.BlogWatermark?.isGif?.(blob, src);
+        const ext = animated ? 'gif' : imageExtension(src, finalType.split('/')[1] || 'png');
         const name = `csdn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
         let processed = blob;
-        if (options.cleanWatermark && window.BlogWatermark) {
+        if (options.cleanWatermark && !animated && window.BlogWatermark) {
           processed = await window.BlogWatermark.process(blob, options);
         }
         const record = await window.BlogDB.addImage(new File([processed], name, { type: processed.type || finalType }), {
           name,
           sourceUrl: src,
-          watermarkStatus: options.cleanWatermark ? 'cleaned' : 'original',
+          watermarkStatus: options.cleanWatermark ? (animated ? 'animated' : 'cleaned') : 'original',
           watermarkMode: options.cleanWatermark ? (options.mode || 'fill') : ''
         });
         return record;

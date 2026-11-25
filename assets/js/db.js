@@ -76,6 +76,18 @@
     return Number.isFinite(time) ? new Date(time).toISOString() : '';
   }
 
+  const FAKE_READS_MIN = 5.1;
+  const FAKE_READS_MAX = 15.9;
+
+  function isValidFakeReads(value) {
+    const num = Number(value);
+    return Number.isFinite(num) && num >= FAKE_READS_MIN && num <= FAKE_READS_MAX;
+  }
+
+  function randomFakeReads() {
+    return Math.round((FAKE_READS_MIN + Math.random() * (FAKE_READS_MAX - FAKE_READS_MIN)) * 10) / 10;
+  }
+
   function normalize(input = {}, existing = null) {
     const now = new Date().toISOString();
     const body = String(input.body ?? existing?.body ?? '');
@@ -94,6 +106,12 @@
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: input.updatedAt || now,
       reads: Math.max(0, Number(input.reads ?? existing?.reads ?? 0) || 0),
+      // 对外展示的模拟阅读量（单位：千），只在公开只读页面使用。
+      fakeReads: isValidFakeReads(input.fakeReads ?? existing?.fakeReads)
+        ? Math.round(Number(input.fakeReads ?? existing?.fakeReads) * 10) / 10
+        : randomFakeReads(),
+      // 可见范围：private 的文章不会进入公开只读站点。
+      visibility: (input.visibility ?? existing?.visibility) === 'private' ? 'private' : 'public',
       likes: Math.max(0, Number(input.likes ?? existing?.likes ?? 0) || 0),
       pinnedAt,
       unpinnedAt
@@ -382,11 +400,31 @@
     await done;
   }
 
+  /** 旧文章补齐模拟阅读量与可见范围，避免公开页面显示真实数据或误发布私密文章。 */
+  async function backfillArticleDefaults() {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const rows = await requestResult(store.getAll());
+    rows.forEach((row) => {
+      const visibility = row.visibility === 'private' ? 'private' : 'public';
+      if (!isValidFakeReads(row.fakeReads) || row.visibility !== visibility) {
+        store.put({
+          ...row,
+          fakeReads: isValidFakeReads(row.fakeReads) ? row.fakeReads : randomFakeReads(),
+          visibility
+        });
+      }
+    });
+    await transactionDone(tx);
+  }
+
   function ready() {
     if (!readyPromise) {
       readyPromise = (async () => {
         await openDB();
         await seedIfEmpty();
+        await backfillArticleDefaults();
         return true;
       })().catch((error) => {
         readyPromise = null;
