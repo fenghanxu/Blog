@@ -93,6 +93,7 @@
     const body = String(input.body ?? existing?.body ?? '');
     const summary = String(input.summary ?? existing?.summary ?? '').trim();
     const cat = input.cat ?? existing?.cat;
+    const importedAt = normalizeStamp(input.importedAt === undefined ? existing?.importedAt : input.importedAt);
     const pinnedAt = normalizeStamp(input.pinnedAt === undefined ? existing?.pinnedAt : input.pinnedAt);
     const unpinnedAt = normalizeStamp(input.unpinnedAt === undefined ? existing?.unpinnedAt : input.unpinnedAt);
 
@@ -105,6 +106,8 @@
       tags: Util.parseTags(input.tags ?? existing?.tags ?? []),
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: input.updatedAt || now,
+      // 导入时间只用于列表排序，保留文章原本的发布时间。
+      importedAt,
       reads: Math.max(0, Number(input.reads ?? existing?.reads ?? 0) || 0),
       // 对外展示的模拟阅读量（单位：千），只在公开只读页面使用。
       fakeReads: isValidFakeReads(input.fakeReads ?? existing?.fakeReads)
@@ -230,6 +233,40 @@
     return images;
   }
 
+  async function getImages(ids = []) {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (!uniqueIds.length) return [];
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const records = await Promise.all(uniqueIds.map((id) => requestResult(store.get(id))));
+    await transactionDone(tx);
+    return records.filter(Boolean);
+  }
+
+  /** 只读取图片的元信息，避免为了统计大小把所有 Blob 载入内存。 */
+  async function listImageMeta() {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const records = await new Promise((resolve, reject) => {
+      const rows = [];
+      const request = store.openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve(rows);
+          return;
+        }
+        rows.push({ id: cursor.value.id, size: Number(cursor.value.size) || 0 });
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error || new Error('读取图片信息失败'));
+    });
+    await transactionDone(tx);
+    return records;
+  }
+
   async function countImages() {
     const db = await openDB();
     const tx = db.transaction(IMAGE_STORE, 'readonly');
@@ -255,9 +292,20 @@
     return removable.length;
   }
 
-  async function exportBackup() {
-    const articles = await list();
-    const images = await getAllImages();
+  async function exportBackup(articleIds = null) {
+    const allArticles = await list();
+    const selectedIds = Array.isArray(articleIds)
+      ? new Set(articleIds.map((id) => String(id)))
+      : null;
+    const articles = selectedIds
+      ? allArticles.filter((article) => selectedIds.has(article.id))
+      : allArticles;
+
+    // 只打包选中文章正文里实际引用的本地图片，避免备份体积无谓变大。
+    const referencedImageIds = new Set(articles.flatMap((article) => Util.localImageIds(article.body)));
+    const images = selectedIds
+      ? await getImages(Array.from(referencedImageIds))
+      : await getAllImages();
     const imagePayload = [];
 
     for (const image of images) {
@@ -299,12 +347,14 @@
       throw new Error('导入方式不正确');
     }
 
+    const importedAt = new Date().toISOString();
     const articleRecords = payload.articles
       .filter((item) => item && typeof item === 'object')
       .map((item) => normalize({
         ...item,
         body: String(item.body || ''),
-        updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
+        updatedAt: item.updatedAt || item.createdAt || importedAt,
+        importedAt
       }));
 
     const imageRecords = [];
@@ -445,9 +495,11 @@
     get,
     getAllImages,
     getImage,
+    getImages,
     incrementReads,
     importBackup,
     list,
+    listImageMeta,
     ready,
     remove,
     setPinned,

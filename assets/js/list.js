@@ -41,6 +41,12 @@
   const backupFileLabel = $('#backupFileLabel');
   const backupFileText = $('#backupFileText');
   const backupStats = $('#backupStats');
+  const exportSearch = $('#exportSearch');
+  const exportSelectAll = $('#exportSelectAll');
+  const exportClear = $('#exportClear');
+  const exportList = $('#exportList');
+  const exportSelection = $('#exportSelection');
+  const exportImageCount = $('#exportImageCount');
   const deleteModal = $('#deleteModal');
   const deleteArticleName = $('#deleteArticleName');
   const confirmDeleteBtn = $('#confirmDeleteBtn');
@@ -60,6 +66,7 @@
   const tagAddBtn = $('#tagAddBtn');
 
   let toastTimer = 0;
+  const exportState = { q: '', selected: new Set(), items: [], imageSizes: new Map(), limit: 80, exporting: false };
   let pendingDeleteId = null;
   let deleteTrigger = null;
   let deleting = false;
@@ -184,6 +191,11 @@
     return Number.isFinite(time) ? time : 0;
   }
 
+  function importedTime(item) {
+    const time = item?.importedAt ? new Date(item.importedAt).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
+  }
+
   function filtered() {
     const query = state.q.trim().toLowerCase();
     let items = articles.filter((item) => (state.cat === 'all' || item.cat === state.cat)
@@ -203,6 +215,11 @@
       const aPinned = pinTime(a);
       const bPinned = pinTime(b);
       if (aPinned !== bPinned) return bPinned - aPinned;
+
+      // 从备份导入的文章排在列表前部，同时保留文章原本的发布时间。
+      const aImported = importedTime(a);
+      const bImported = importedTime(b);
+      if (aImported !== bImported) return bImported - aImported;
 
       const aUnpinned = unpinTime(a);
       const bUnpinned = unpinTime(b);
@@ -547,18 +564,133 @@
   }
 
   /* ---------------- 备份与恢复 ---------------- */
+  const EXPORT_PAGE_SIZE = 80;
+
+  function formatBytes(bytes) {
+    const value = Math.max(0, Number(bytes) || 0);
+    if (value < 1024) return `${value} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let size = value / 1024;
+    let index = 0;
+    while (size >= 1024 && index < units.length - 1) {
+      size /= 1024;
+      index += 1;
+    }
+    return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${units[index]}`;
+  }
+
+  function exportMatches(item) {
+    const query = exportState.q.trim().toLowerCase();
+    if (!query) return true;
+    return [item.title, item.summary, (item.tags || []).join(' '), Util.categoryLabel(item.cat)]
+      .join(' ')
+      .toLowerCase()
+      .includes(query);
+  }
+
+  function exportVisibleItems() {
+    return exportState.items.filter((item) => exportMatches(item));
+  }
+
+  function exportItemImageCount(item) {
+    return Util.localImageIds(item.body).filter((id) => exportState.imageSizes.has(id)).length;
+  }
+
+  function selectedExportTotals() {
+    const selectedItems = exportState.items.filter((item) => exportState.selected.has(item.id));
+    const imageIds = new Set();
+    let textBytes = 0;
+    let imageBytes = 0;
+    selectedItems.forEach((item) => {
+      Util.localImageIds(item.body).forEach((id) => {
+        if (!exportState.imageSizes.has(id) || imageIds.has(id)) return;
+        imageIds.add(id);
+        imageBytes += exportState.imageSizes.get(id) || 0;
+      });
+      // 正文按 UTF-8 字节数粗估，图片另按 data URL 的 Base64 体积放大。
+      textBytes += new TextEncoder().encode(item.body || '').length;
+    });
+    return {
+      articles: selectedItems.length,
+      images: imageIds.size,
+      bytes: Math.round(textBytes + imageBytes * 1.34)
+    };
+  }
+
+  function updateExportFooter() {
+    if (!exportSelection || !exportImageCount) return;
+    const totals = selectedExportTotals();
+    exportSelection.textContent = `已选 ${totals.articles} 篇 · 约 ${formatBytes(totals.bytes)}`;
+    exportImageCount.textContent = `含 ${totals.images} 张本地图片`;
+    exportBackupBtn.disabled = exportState.exporting || totals.articles === 0;
+    exportBackupBtn.setAttribute('aria-disabled', String(exportBackupBtn.disabled));
+    if (!exportState.exporting) {
+      exportBackupText.textContent = totals.articles ? `导出所选（${totals.articles}）` : '导出所选文章';
+    }
+  }
+
+  function renderExportList() {
+    if (!exportList) return;
+    const visible = exportVisibleItems();
+    const selectedVisible = visible.filter((item) => exportState.selected.has(item.id)).length;
+    if (!exportState.items.length) {
+      exportList.innerHTML = '<p class="export-empty">还没有文章，先写一篇再来备份吧。</p>';
+      exportSelectAll.textContent = '全选';
+      exportClear.disabled = !exportState.selected.size;
+      updateExportFooter();
+      return;
+    }
+    if (!visible.length) {
+      exportList.innerHTML = '<p class="export-empty">没有匹配的文章，换个关键词试试。</p>';
+      exportSelectAll.textContent = '全选';
+      exportClear.disabled = !exportState.selected.size;
+      updateExportFooter();
+      return;
+    }
+
+    const shown = visible.slice(0, exportState.limit);
+    const rows = shown.map((item) => {
+      const checked = exportState.selected.has(item.id);
+      const imageCount = exportItemImageCount(item);
+      return `
+        <label class="export-item${checked ? ' is-selected' : ''}">
+          <input type="checkbox" data-export-id="${Util.escapeHtml(item.id)}" ${checked ? 'checked' : ''}>
+          <span class="export-item-main">
+            <span class="export-item-title">${Util.escapeHtml(item.title)}</span>
+            <span class="export-item-meta">${Util.escapeHtml(Util.categoryLabel(item.cat))} · ${Util.formatListDate(item.createdAt)}${imageCount ? ` · ${imageCount} 张图片` : ''}</span>
+          </span>
+        </label>`;
+    });
+    if (visible.length > shown.length) {
+      rows.push(`<button class="export-more" type="button" data-export-more>再显示 ${Math.min(EXPORT_PAGE_SIZE, visible.length - shown.length)} 篇（剩余 ${visible.length - shown.length} 篇）</button>`);
+    }
+    exportList.innerHTML = rows.join('');
+    exportSelectAll.textContent = selectedVisible === visible.length ? '取消全选' : '全选';
+    exportClear.disabled = !exportState.selected.size;
+    updateExportFooter();
+  }
+
   async function refreshBackupStats() {
     if (!backupStats) return;
     backupStats.textContent = '正在统计…';
     try {
       await window.BlogDB.ready();
-      const [items, imageCount] = await Promise.all([
+      const [items, imageMeta] = await Promise.all([
         window.BlogDB.list(),
-        window.BlogDB.countImages()
+        window.BlogDB.listImageMeta()
       ]);
-      backupStats.textContent = `当前 ${items.length} 篇文章 · ${imageCount} 张本地图片`;
+      exportState.items = items;
+      exportState.imageSizes = new Map(imageMeta.map((image) => [image.id, image.size]));
+      const ids = new Set(items.map((item) => item.id));
+      Array.from(exportState.selected).forEach((id) => {
+        if (!ids.has(id)) exportState.selected.delete(id);
+      });
+      backupStats.textContent = `本地共 ${items.length} 篇文章 · ${imageMeta.length} 张图片`;
+      renderExportList();
     } catch (error) {
       backupStats.textContent = '暂时无法统计';
+      exportList.innerHTML = '<p class="export-empty">读取文章失败，请关掉窗口后重试。</p>';
+      updateExportFooter();
     }
   }
 
@@ -575,39 +707,47 @@
     backupBtn.focus();
   }
 
-  function backupFileName() {
+  function backupFileName(count = 0) {
     const now = new Date();
     const day = `${now.getFullYear()}${Util.pad2(now.getMonth() + 1)}${Util.pad2(now.getDate())}`;
     const time = `${Util.pad2(now.getHours())}${Util.pad2(now.getMinutes())}`;
-    return `zjian-backup-${day}-${time}.json`;
+    return `zjian-backup-${day}-${time}${count ? `-${count}篇` : ''}.json`;
   }
 
   async function downloadBackup() {
-    if (exportBackupBtn.disabled) return;
-    exportBackupBtn.disabled = true;
+    if (exportState.exporting) return;
+    const selectedIds = exportState.items
+      .filter((item) => exportState.selected.has(item.id))
+      .map((item) => item.id);
+    if (!selectedIds.length) {
+      toast('请先勾选要导出的文章');
+      return;
+    }
+
+    exportState.exporting = true;
     exportBackupText.textContent = '正在打包…';
+    updateExportFooter();
 
     try {
       await window.BlogDB.ready();
-      const data = await window.BlogDB.exportBackup();
-      if (!data.articles.length && !data.images.length) {
-        toast('还没有可以备份的文章或图片');
+      const data = await window.BlogDB.exportBackup(selectedIds);
+      if (!data.articles.length) {
+        toast('选中的文章已经不存在，请刷新后重试');
         return;
       }
 
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = backupFileName();
+      link.download = backupFileName(data.articles.length);
       link.click();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
       toast(`已导出 ${data.articles.length} 篇文章、${data.images.length} 张图片`);
-      refreshBackupStats();
     } catch (error) {
       toast(error.message || '备份导出失败');
     } finally {
-      exportBackupBtn.disabled = false;
-      exportBackupText.textContent = '下载备份';
+      exportState.exporting = false;
+      updateExportFooter();
     }
   }
 
@@ -636,6 +776,11 @@
       const result = await window.BlogDB.importBackup(data, mode);
       const skipped = result.skipped ? `，跳过 ${result.skipped} 篇同 ID 文章` : '';
       toast(`导入完成：${result.imported} 篇文章、${result.images} 张图片${skipped}`);
+      if (result.imported) {
+        state.sort = 'latest';
+        sortSelect.value = 'latest';
+        state.page = 1;
+      }
       closeBackup();
       await loadArticles();
     } catch (error) {
@@ -950,6 +1095,41 @@
 
   backupBtn.addEventListener('click', openBackup);
   exportBackupBtn.addEventListener('click', downloadBackup);
+  exportSearch.addEventListener('input', () => {
+    exportState.q = exportSearch.value;
+    exportState.limit = 80;
+    renderExportList();
+  });
+  exportSelectAll.addEventListener('click', () => {
+    const visible = exportVisibleItems();
+    const allSelected = visible.length && visible.every((item) => exportState.selected.has(item.id));
+    visible.forEach((item) => {
+      if (allSelected) exportState.selected.delete(item.id);
+      else exportState.selected.add(item.id);
+    });
+    renderExportList();
+  });
+  exportClear.addEventListener('click', () => {
+    exportState.selected.clear();
+    renderExportList();
+  });
+  exportList.addEventListener('change', (event) => {
+    const input = event.target.closest('input[data-export-id]');
+    if (!input) return;
+    if (input.checked) exportState.selected.add(input.dataset.exportId);
+    else exportState.selected.delete(input.dataset.exportId);
+    input.closest('.export-item')?.classList.toggle('is-selected', input.checked);
+    const visible = exportVisibleItems();
+    const selectedVisible = visible.filter((item) => exportState.selected.has(item.id)).length;
+    exportSelectAll.textContent = selectedVisible === visible.length ? '取消全选' : '全选';
+    exportClear.disabled = !exportState.selected.size;
+    updateExportFooter();
+  });
+  exportList.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-export-more]')) return;
+    exportState.limit += 80;
+    renderExportList();
+  });
   importFile.addEventListener('change', () => importBackupFile(importFile.files[0]));
   backupModal.querySelectorAll('[data-close-backup]').forEach((element) => {
     element.addEventListener('click', closeBackup);

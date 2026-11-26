@@ -45,7 +45,7 @@ python3 -m http.server 8080
 - [x] 图片上传与正文图片本地化。
 - [x] 支持导入 CSDN 富文本 / Markdown，并把网络图片保存到 IndexedDB。
 - [x] 正文支持嵌入 B 站 / YouTube 视频与 MP4 直链。
-- [x] 文章和图片的 JSON 备份、合并导入与覆盖恢复。
+- [x] 按文章选择导出 JSON 备份（含引用图片）、合并导入与覆盖恢复。
 - [ ] 可选：接入远程接口，实现跨设备同步。
 
 ## 已实现
@@ -57,7 +57,7 @@ python3 -m http.server 8080
 - 本地草稿自动保存在 `localStorage`，按文章区分；发布或删除后清理对应草稿。
 - 工具栏图片按钮支持选择、粘贴和拖拽本地图片，图片 Blob 存入 IndexedDB。
 - 删除文章时会清理只被该文章引用的本地图片。
-- 列表页“备份”可以导出包含文章和图片的 JSON，也支持合并导入和覆盖恢复。
+- 列表页“备份”可以搜索、勾选文章后导出，自动带上正文引用的本地图片；导入文章会排到列表前部。
 - 编辑器导出的 Markdown 会把本地图片内嵌为 data URL，方便单独带走。
 - 工具栏“导入”支持粘贴 CSDN 文章，自动识别标题和正文、批量下载网络图片并替换为本地引用；下载失败的图片保留原链接，并提供重试与按顺序补传。
 - 工具栏“视频”支持粘贴 B 站视频页（含分 P）、YouTube、Vimeo 或 .mp4 直链，自动生成 16:9 播放器；插入的 iframe 只放行白名单域名，其余会被净化掉。
@@ -108,6 +108,7 @@ python3 -m http.server 8080
 | `tags` | string[] | 标签 |
 | `createdAt` | string | 创建时间（ISO） |
 | `updatedAt` | string | 最后更新时间（ISO） |
+| `importedAt` | string | 备份导入时间（ISO），用于把导入文章排在列表前部 |
 | `reads` | number | 阅读数 |
 | `likes` | number | 点赞数 |
 
@@ -122,7 +123,7 @@ await BlogDB.update(id, patch);
 await BlogDB.remove(id);
 await BlogDB.addImage(file);
 await BlogDB.getImage(id);
-const backup = await BlogDB.exportBackup();
+const backup = await BlogDB.exportBackup(['文章ID1', '文章ID2']); // 不传参数则导出全部文章
 await BlogDB.importBackup(backup, 'merge'); // 或 'replace'
 ```
 
@@ -130,8 +131,8 @@ await BlogDB.importBackup(backup, 'merge'); // 或 'replace'
 
 - 编辑器工具栏的图片按钮、正文粘贴图片、把图片拖进编辑区，都会保存到本地数据库。
 - Markdown 中显示为 `![名称](blog-image/图片ID)`，打开编辑页或详情页时自动换成 Blob URL。
-- 备份文件是 JSON，包含全部文章和图片的 data URL，可以移到其他目录保存。
-- 合并导入会跳过同 ID 的文章；覆盖恢复会先清空当前文章和图片，适合完整还原。
+- 备份文件是 JSON，可以勾选部分文章导出；只打包所选文章正文实际引用的本地图片，图片以 data URL 保存。
+- 合并导入会跳过同 ID 的文章，新导入的文章会排在列表前部并保留原本的发布时间；覆盖恢复会先清空当前文章和图片，适合完整还原。
 
 图片和文章都占用浏览器的 IndexedDB 配额，单张图片限制 10MB。需要长期保存时，建议定期导出备份。
 
