@@ -929,7 +929,7 @@
   emptyBtn.addEventListener('click', () => {
     const mode = emptyBtn.dataset.mode;
     if (mode === 'blank') {
-      window.location.href = 'edit.html';
+      window.open('edit.html', '_blank', 'noopener');
       return;
     }
     if (mode === 'error') {

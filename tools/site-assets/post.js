@@ -106,4 +106,33 @@
       else if (event.key === 'ArrowRight' && images.length > 1) open(current + 1);
     });
   }
+
+  /* ---------------- 长代码块折叠 ---------------- */
+
+  const CODE_FOLD_HEIGHT = 360; // 超过约 15 行的代码块默认收起
+
+  document.querySelectorAll('.content .code').forEach((block) => {
+    const pre = block.querySelector('pre');
+    if (!pre) return;
+    // 内容可见时测量完整高度，矮代码块保持原样
+    if (pre.scrollHeight <= CODE_FOLD_HEIGHT + 40) return;
+
+    const foot = document.createElement('div');
+    foot.className = 'code-foot';
+    foot.innerHTML = '<button class="code-toggle" type="button" aria-expanded="false">展开'
+      + '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.8 6.4 3.2 3.2 3.2-3.2"/></svg></button>';
+    block.appendChild(foot);
+    block.classList.add('is-collapsed');
+
+    const toggle = foot.querySelector('.code-toggle');
+    toggle.addEventListener('click', () => {
+      const collapsed = block.classList.toggle('is-collapsed');
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      toggle.firstChild.textContent = collapsed ? '展开' : '收起';
+      if (collapsed) {
+        const top = block.getBoundingClientRect().top + window.scrollY - 24;
+        if (window.scrollY > top) window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
 })();

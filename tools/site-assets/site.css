@@ -88,7 +88,10 @@
 @media (max-width:640px){
   .site-topbar{margin-top:12px}
   .shell{grid-template-columns:minmax(0,1fr)}
-  .side{position:static}
+  /* 手机上目录直接跟页面滚动，不再固定在视口内 */
+  .side{position:static;max-height:none}
+  #tocCard{overflow:visible}
+  .toc-list{overflow:visible;padding-right:0}
   .lightbox{padding:14px}
 }
 
