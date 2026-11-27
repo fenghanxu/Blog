@@ -186,16 +186,6 @@
     return Number.isFinite(time) ? time : 0;
   }
 
-  function unpinTime(item) {
-    const time = item?.unpinnedAt ? new Date(item.unpinnedAt).getTime() : 0;
-    return Number.isFinite(time) ? time : 0;
-  }
-
-  function importedTime(item) {
-    const time = item?.importedAt ? new Date(item.importedAt).getTime() : 0;
-    return Number.isFinite(time) ? time : 0;
-  }
-
   function filtered() {
     const query = state.q.trim().toLowerCase();
     let items = articles.filter((item) => (state.cat === 'all' || item.cat === state.cat)
@@ -210,20 +200,11 @@
     };
     const bySort = sorters[state.sort];
 
-    // 置顶文章始终排在前面；取消置顶的文章排在所有非置顶文章之前。
+    // 置顶文章按置顶时间排在前面，其余文章按当前排序方式排列。
     return items.sort((a, b) => {
       const aPinned = pinTime(a);
       const bPinned = pinTime(b);
       if (aPinned !== bPinned) return bPinned - aPinned;
-
-      // 从备份导入的文章排在列表前部，同时保留文章原本的发布时间。
-      const aImported = importedTime(a);
-      const bImported = importedTime(b);
-      if (aImported !== bImported) return bImported - aImported;
-
-      const aUnpinned = unpinTime(a);
-      const bUnpinned = unpinTime(b);
-      if (aUnpinned !== bUnpinned) return bUnpinned - aUnpinned;
 
       return bySort(a, b);
     });

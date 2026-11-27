@@ -106,7 +106,7 @@
       tags: Util.parseTags(input.tags ?? existing?.tags ?? []),
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: input.updatedAt || now,
-      // 导入时间只用于列表排序，保留文章原本的发布时间。
+      // 导入时间仅作记录；列表排序统一使用 createdAt，保留文章原本的发布时间。
       importedAt,
       reads: Math.max(0, Number(input.reads ?? existing?.reads ?? 0) || 0),
       // 对外展示的模拟阅读量（单位：千），只在公开只读页面使用。
